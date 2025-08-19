@@ -1,0 +1,8 @@
+
+*.cache
+
+src/PagamentosTests/obj/Debug/net8.0/
+
+src/PagamentosTests/.vs/ProjectEvaluation/
+
+src/PagamentosTests/.vs/PagamentosTests/FileContentIndex/
