@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "identityapp1": {
+      "connectionInfo": "Registro do aplicativo: fcg-pagamentos, Locatário: Fiap-Faculdade de Informática e Administração Paulista (fiap.com.br - Microsoft Entra ID)",
+      "type": "identityapp.default"
+    }
+  }
+}
