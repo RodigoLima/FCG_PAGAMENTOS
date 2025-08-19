@@ -4,7 +4,7 @@ Este repositório contém a implementação de um sistema de pagamentos com uma 
 Estrutura do Repositório
 A estrutura de pastas e projetos reflete a separação de camadas da Arquitetura Hexagonal, com o núcleo do domínio isolado das camadas de infraestrutura.
 
-.
+```
 ├── /src
 │   ├── /MinhaApp.Core
 │   │   ├── /Domain           
@@ -32,7 +32,8 @@ A estrutura de pastas e projetos reflete a separação de camadas da Arquitetura
 └── /tests                    
     ├── /MinhaApp.Core.Tests  
     ├── /MinhaApp.Api.Tests   
-    └── /MinhaApp.EndToEnd.Tests 
+    └── /MinhaApp.EndToEnd.Tests
+```
 Detalhamento dos Projetos
 src/
 Contém o código-fonte da aplicação, organizado por camadas:
