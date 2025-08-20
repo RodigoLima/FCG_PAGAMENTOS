@@ -1,4 +1,4 @@
-﻿FCG_PAGAMENTOS
+FCG_PAGAMENTOS
 Este repositório contém a implementação de um sistema de pagamentos com uma arquitetura robusta e escalável, seguindo os princípios da Arquitetura Hexagonal. A solução é dividida em projetos com responsabilidades bem definidas, facilitando a manutenção e a testabilidade.
 
 Estrutura do Repositório
