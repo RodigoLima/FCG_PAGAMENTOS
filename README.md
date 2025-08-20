@@ -1,10 +1,10 @@
-﻿FCG_PAGAMENTOS
+FCG_PAGAMENTOS
 Este repositório contém a implementação de um sistema de pagamentos com uma arquitetura robusta e escalável, seguindo os princípios da Arquitetura Hexagonal. A solução é dividida em projetos com responsabilidades bem definidas, facilitando a manutenção e a testabilidade.
 
 Estrutura do Repositório
 A estrutura de pastas e projetos reflete a separação de camadas da Arquitetura Hexagonal, com o núcleo do domínio isolado das camadas de infraestrutura.
 
-```
+.
 ├── /src
 │   ├── /MinhaApp.Core
 │   │   ├── /Domain           
@@ -32,8 +32,7 @@ A estrutura de pastas e projetos reflete a separação de camadas da Arquitetura
 └── /tests                    
     ├── /MinhaApp.Core.Tests  
     ├── /MinhaApp.Api.Tests   
-    └── /MinhaApp.EndToEnd.Tests
-```
+    └── /MinhaApp.EndToEnd.Tests 
 Detalhamento dos Projetos
 src/
 Contém o código-fonte da aplicação, organizado por camadas:
