@@ -6,3 +6,11 @@ src/PagamentosTests/obj/Debug/net8.0/
 src/PagamentosTests/.vs/ProjectEvaluation/
 
 src/PagamentosTests/.vs/PagamentosTests/FileContentIndex/
+
+*.vsidx
+
+FCGPagamentos/FCGPagamentos.API/obj/Debug/net8.0/
+
+FCGPagamentos/FCGPagamentos.Application/obj/Debug/net8.0/
+
+FCGPagamentos/FCGPagamentos.Infrastructure/obj/Debug/net8.0/
