@@ -1,8 +1,19 @@
+.vs
 
 *.cache
+
+src/.vs
+src/FCGPagamentos.Core/obj
+src/FCGPagamentos.API/obj
+src/FCGPagamentos.Infrastructure/obj
+src/FCGPagamentosFunctions/obj
+src/PagamentosTests/obj
 
 src/PagamentosTests/obj/Debug/net8.0/
 
 src/PagamentosTests/.vs/ProjectEvaluation/
 
 src/PagamentosTests/.vs/PagamentosTests/FileContentIndex/
+FCGPagamentos/FCGPagamentos.API/obj/Debug/net8.0/
+
+FCGPagamentos/FCGPagamentos.Infrastructure/obj/Debug/net8.0/
