@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36221.1 d17.14
+VisualStudioVersion = 17.14.36221.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FCGPagamentos.Infrastructure", "FCGPagamentos.Infrastructure\FCGPagamentos.Infrastructure.csproj", "{F467B289-1FDA-4DD1-9191-83A69EBFCF5B}"
 EndProject
@@ -22,6 +22,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FCGPagamentos.API.tests", "FCGPagamentos.API.tests\FCGPagamentos.API.tests.csproj", "{611CA782-F803-4232-B47F-D2961E7D14C2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FCGPagamentos.Domain", "FCGPagamentos.Domain\FCGPagamentos.Domain.csproj", "{020DB66F-D69B-472E-B245-9ADF61E55F87}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FCGPagamentos.Application", "FCGPagamentos.Application\FCGPagamentos.Application.csproj", "{B89B1972-6BAE-41F0-29C1-07B820D4BADC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +47,10 @@ Global
 		{020DB66F-D69B-472E-B245-9ADF61E55F87}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{020DB66F-D69B-472E-B245-9ADF61E55F87}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{020DB66F-D69B-472E-B245-9ADF61E55F87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B89B1972-6BAE-41F0-29C1-07B820D4BADC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B89B1972-6BAE-41F0-29C1-07B820D4BADC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B89B1972-6BAE-41F0-29C1-07B820D4BADC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B89B1972-6BAE-41F0-29C1-07B820D4BADC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
