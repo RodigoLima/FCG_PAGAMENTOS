@@ -1,5 +1,22 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
+﻿.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
 
-/.vs/FCG_PAGAMENTOS/CopilotIndices/17.14.995.13737
+# Build
+bin/
+obj/
+
+# Arquivos de usuário
+*.suo
+*.user
+*.userosscache
+
+# Sistema
+Thumbs.db
+desktop.ini
+*.DS_Store
+/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
+/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
+/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
