@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FCGPagamentos.API.tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aeef27714d941e69a786ea49fb3eaf0ce4dce043")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4b3ef670b2f2d6473e1fc702699c8878b1d39e7d")]
 [assembly: System.Reflection.AssemblyProductAttribute("FCGPagamentos.API.tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FCGPagamentos.API.tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
