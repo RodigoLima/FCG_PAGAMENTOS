@@ -7,6 +7,10 @@
 # Build
 bin/
 obj/
+**/bin/
+**/obj/
+bin/**
+obj/**
 
 # Arquivos de usuário
 *.suo
@@ -17,6 +21,5 @@ obj/
 Thumbs.db
 desktop.ini
 *.DS_Store
-/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
-/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
-/FCGPagamentos/.vs/FCGPagamentos/v17/.suo
+.suo
+obj/**	

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "FCGPagamentos.Domain": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
