@@ -1,4 +1,8 @@
 ﻿.vs/
+**.vs/**
+.vs/**
+.vs
+**.vs/
 *.suo
 *.user
 *.userosscache
@@ -11,7 +15,11 @@ obj/
 **/obj/
 bin/**
 obj/**
-
+net.8/**
+**/net.8/
+.net.8/
+.v17/
+**v.17/
 # Arquivos de usuário
 *.suo
 *.user
@@ -23,3 +31,4 @@ desktop.ini
 *.DS_Store
 .suo
 obj/**	
+x
