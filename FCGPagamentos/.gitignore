@@ -33,3 +33,5 @@ desktop.ini
 obj/**	
 .vs/**
 **.vs/
+**.suo
+suo**
