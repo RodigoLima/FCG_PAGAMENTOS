@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FCGPagamentos.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4b3ef670b2f2d6473e1fc702699c8878b1d39e7d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1904368185b5bfeea6136376a6edeecdda2ea9d5")]
 [assembly: System.Reflection.AssemblyProductAttribute("FCGPagamentos.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FCGPagamentos.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
