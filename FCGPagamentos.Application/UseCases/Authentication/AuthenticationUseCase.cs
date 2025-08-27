@@ -1,6 +1,6 @@
 ﻿using FCGPagamentos.Application.Repository;
 
-namespace FCGPagamentos.Application.UseCases;
+namespace FCGPagamentos.Application.UseCases.Authentication;
 
 internal class AuthenticationUseCase : IAuthenticationUseCase
 {

@@ -9,9 +9,8 @@ Este repositório contém a implementação de um sistema de pagamentos com uma 
 │   │   └── /Driver
 │   │       └── FCGPagamentos.API // Onde fica a nossa API, e somente ela tem acesso ao Domain
 │   └── /Core
-│       ├── /FCGPagamentos.Domain // Onde ficam todas as entidades
-│       └── /Entities
-│
+│       ├── /FCGPagamentos.Domain // Onde ficam todas as entidades, não deve ter referência a EF, pois deve ser agnóstico de tecnologia
+│       └── /FCGPagamentos.Application // Onde ficam todas as regras de negócio, UseCases, request, response
 └── /tests
-    ├── /FCGPagamentos.API.Tests
+    └── /FCGPagamentos.API.Tests
 ```

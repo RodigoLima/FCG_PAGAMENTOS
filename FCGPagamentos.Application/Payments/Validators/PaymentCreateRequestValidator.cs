@@ -1,6 +1,5 @@
-﻿
-using FCGPagamentos.Application.Domain.Payments.DTOs;
-using FCGPagamentos.Application.Domain.Payments.Messages;
+﻿using FCGPagamentos.Application.Domain.Payments.Messages;
+using FCGPagamentos.Application.Payments.DTOs.Requests;
 using FluentValidation;
 
 namespace FCGPagamentos.Application.Domain.Payments.Validators;

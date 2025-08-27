@@ -62,14 +62,14 @@ public class PaymentCreateRequestValidatorTest
   [Theory(DisplayName = "Validate_ShouldReturnAmountGreaterThanZero")]
   [InlineData(null)]
   [InlineData(0.0)]
-  public void Validate_ShouldReturnAmountGreaterThanZero(decimal? amount)
+  public void Validate_ShouldReturnAmountGreaterThanZero(double? amount)
   {
     //Arrange
     var request = new PaymentCreateRequest
     {
       GameId = new Guid(),
       UserId = new Guid(),
-      Amount = 0
+      Amount = 10
     };
     if (amount != null) request.Amount = (decimal)amount;
 
