@@ -1,4 +1,5 @@
 using FCGPagamentos.Application;
+using FCGPagamentos.Domain.Context;
 using FCGPagamentos.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -32,7 +33,10 @@ builder.Services.AddCors(options =>
 ApplicationBootstrapper.Register(builder.Services);
 InfrastructureBootstrapper.Register(builder.Services);
 #endregion
-
+#region Entity Framework
+builder.Services.AddDbContext<ApplicationContext>();
+#endregion
+//
 
 var app = builder.Build();
 
