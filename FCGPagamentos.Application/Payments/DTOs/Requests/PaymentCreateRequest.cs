@@ -1,5 +1,4 @@
-﻿
-namespace FCGPagamentos.Application.Domain.Payments.DTOs;
+﻿namespace FCGPagamentos.Application.Payments.DTOs.Requests;
 public class PaymentCreateRequest
 {
   public Guid UserId { get; set; }

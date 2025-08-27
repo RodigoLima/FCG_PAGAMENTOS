@@ -13,13 +13,12 @@
 
   <ItemGroup>
     <Folder Include="Commands\" />
-    <Folder Include="Domain\Events\Messages\" />
-    <Folder Include="Domain\Payments\Comands\" />
-    <Folder Include="Domain\Payments\Querys\" />
-    <Folder Include="Domain\Events\Comands\" />
-    <Folder Include="Domain\Events\DTOs\" />
-    <Folder Include="Domain\Events\Validators\" />
-    <Folder Include="Domain\Events\Querys\" />
+    <Folder Include="Payments\Comands\" />
+    <Folder Include="Payments\Querys\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCGPagamentos.Domain\FCGPagamentos.Domain.csproj" />
   </ItemGroup>
 
 </Project>
