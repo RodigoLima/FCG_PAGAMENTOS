@@ -11,5 +11,6 @@ public static class ApplicationBootstrapper
   {
     services.AddTransient<IAuthenticationUseCase, AuthenticationUseCase>();
     services.AddTransient<IPaymentsUseCase, PaymentsUseCase>();
+
   }
 }
