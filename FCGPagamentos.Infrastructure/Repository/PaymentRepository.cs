@@ -4,7 +4,7 @@ using FCGPagamentos.Domain.Entites;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCGPagamentos.Infrastructure.Repository;
-public class PaymentRepository : IRepository<Payment>
+public class PaymentRepository : IPaymentRepository
 {
   private readonly ApplicationContext _context;
   public PaymentRepository(ApplicationContext context)
