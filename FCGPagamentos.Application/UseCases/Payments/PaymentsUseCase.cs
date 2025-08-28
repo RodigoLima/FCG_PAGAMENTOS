@@ -1,15 +1,15 @@
 ﻿using FCGPagamentos.Application.Domain.Payments.Messages;
+using FCGPagamentos.Application.IRepository.Base;
 using FCGPagamentos.Application.Payments.DTOs.Requests;
 using FCGPagamentos.Application.Payments.DTOs.Responses;
-using FCGPagamentos.Application.Repository;
 using FCGPagamentos.Domain.Entites;
 
 namespace FCGPagamentos.Application.UseCases.Payments;
 public class PaymentsUseCase : IPaymentsUseCase
 {
-  private readonly IRepository<Payment> _paymentRepository;
+  private readonly IRepositoryBase<Payment> _paymentRepository;
 
-  public PaymentsUseCase(IRepository<Payment> paymentRepository)
+  public PaymentsUseCase(IRepositoryBase<Payment> paymentRepository)
   {
     _paymentRepository = paymentRepository;
   }
