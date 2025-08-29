@@ -8,20 +8,34 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCGPagamentos.API.DI;
+
 public static class CompositionRoot
 {
     public static IServiceCollection AddAppServices(this IServiceCollection s, IConfiguration cfg)
     {
-        s.AddDbContext<AppDbContext>(o => o.UseNpgsql(cfg.GetConnectionString("Postgres")));
+        var cs = ConnectionStringProvider.Resolve(cfg);
+
+        // DbContext
+        s.AddDbContext<AppDbContext>(options =>
+        {
+            options.UseNpgsql(cs);
+        });
+
+        // Repositórios / Adapters
         s.AddScoped<IPaymentRepository, PaymentRepository>();
-        s.AddScoped<IEventStore, IEventStore>();
+        s.AddScoped<IEventStore, EventStore>();    // <- IMPLEMENTAÇÃO correta
+
+        // Infra auxiliar
         s.AddSingleton<IClock, SystemClock>();
 
+        // Casos de uso + validação
         s.AddScoped<CreatePaymentHandler>();
         s.AddScoped<GetPaymentHandler>();
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
+        // Health checks
         s.AddHealthChecks();
+
         return s;
     }
 }
