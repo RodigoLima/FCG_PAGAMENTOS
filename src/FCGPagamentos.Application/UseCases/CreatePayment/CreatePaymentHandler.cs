@@ -1,4 +1,5 @@
-﻿using FCGPagamentos.Application.Abstractions;
+﻿using FCGPagamentos.Application.Events;
+using FCGPagamentos.Application.Abstractions;
 using FCGPagamentos.Application.DTOs;
 using FCGPagamentos.Domain.Entities;
 using FCGPagamentos.Domain.ValueObjects;
@@ -16,18 +17,19 @@ public class CreatePaymentHandler
     public async Task<PaymentDto> Handle(CreatePaymentCommand cmd, CancellationToken ct)
     {
         var now = _clock.UtcNow;
+
         var payment = new Payment(cmd.UserId, cmd.GameId, new Money(cmd.Amount, cmd.Currency), now);
         await _repo.AddAsync(payment, ct);
-        await _events.AppendAsync("PaymentRequested", new
-        {
-            payment.Id,
-            payment.UserId,
-            payment.GameId,
-            Amount = cmd.Amount,
-            cmd.Currency
-        }, now, ct);
+
+        var evt = new PaymentRequested(
+            payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency, now
+        );
+
+        await _events.AppendAsync(nameof(PaymentRequested), evt, now, ct);
+
         await _repo.SaveChangesAsync(ct);
 
-        return new PaymentDto(payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency, payment.Status, payment.CreatedAt, payment.ProcessedAt);
+        return new PaymentDto(payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency,
+                              payment.Status, payment.CreatedAt, payment.ProcessedAt);
     }
 }
