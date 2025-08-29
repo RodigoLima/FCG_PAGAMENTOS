@@ -9,4 +9,7 @@ public class EventStore(AppDbContext db) : IEventStore
         var json = JsonSerializer.Serialize(payload);
         await db.Events.AddAsync(new EventLog { Type = type, Payload = json, OccurredAt = occurredAt }, ct);
     }
+
+    public Task AppendAsync<TEvent>(TEvent payload, DateTime occurredAt, CancellationToken ct)
+        => AppendAsync(typeof(TEvent).Name, payload!, occurredAt, ct);
 }
