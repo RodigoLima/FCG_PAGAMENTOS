@@ -13,6 +13,7 @@
 	<ItemGroup>
 		<PackageReference Include="Bogus" Version="35.6.3" />
 		<PackageReference Include="coverlet.collector" Version="6.0.0" />
+		<PackageReference Include="FluentValidation" Version="12.0.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
 		<PackageReference Include="Moq" Version="4.20.72" />
 		<PackageReference Include="xunit" Version="2.5.3" />
@@ -26,8 +27,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\FCGPagamentos.Application\FCGPagamentos.Application.csproj" />
-		<ProjectReference Include="..\FCGPagamentos.Domain\FCGPagamentos.Domain.csproj" />
+	  <ProjectReference Include="..\..\src\FCGPagamentos.Application\FCGPagamentos.Application.csproj" />
+	  <ProjectReference Include="..\..\src\FCGPagamentos.Domain\FCGPagamentos.Domain.csproj" />
+	  <ProjectReference Include="..\..\src\FCGPagamentos.Infrastructure\FCGPagamentos.Infrastructure.csproj" />
+	  <ProjectReference Include="..\..\src\FCGPagamentos.API\FCGPagamentos.API.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="UnitTests\Services\" />
+	  <Folder Include="UnitTests\Validations\Payment\" />
+	  <Folder Include="Utils\" />
 	</ItemGroup>
 
 </Project>
