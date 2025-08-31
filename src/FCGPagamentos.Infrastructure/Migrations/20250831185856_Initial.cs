@@ -7,13 +7,13 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FCGPagamentos.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialMigration : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "EventStore",
+                name: "event_store",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -27,7 +27,7 @@ namespace FCGPagamentos.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_EventStore", x => x.Id);
+                    table.PrimaryKey("PK_event_store", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -50,18 +50,18 @@ namespace FCGPagamentos.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_EventStore_AggregateId",
-                table: "EventStore",
+                name: "IX_event_store_AggregateId",
+                table: "event_store",
                 column: "AggregateId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EventStore_OccurredAt",
-                table: "EventStore",
+                name: "IX_event_store_OccurredAt",
+                table: "event_store",
                 column: "OccurredAt");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EventStore_Version",
-                table: "EventStore",
+                name: "IX_event_store_Version",
+                table: "event_store",
                 column: "Version");
 
             migrationBuilder.CreateIndex(
@@ -79,7 +79,7 @@ namespace FCGPagamentos.Infrastructure.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "EventStore");
+                name: "event_store");
 
             migrationBuilder.DropTable(
                 name: "payments");
