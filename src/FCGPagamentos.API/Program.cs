@@ -10,6 +10,8 @@ b.Services.AddAppServices(b.Configuration);
 b.Services.AddEndpointsApiExplorer();
 b.Services.AddSwaggerGen();
 
+b.Services.AddApplicationInsightsTelemetry();
+
 var app = b.Build();
 
 // Ativa Swagger só em Development
