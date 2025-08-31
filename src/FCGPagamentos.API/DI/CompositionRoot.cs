@@ -40,8 +40,21 @@ public static class CompositionRoot
         s.AddScoped<GetPaymentHandler>();
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
-        s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
-        s.AddScoped<AzureQueuePaymentPublisher>(); // Registra também a classe concreta para o HealthCheck
+        // Configuração condicional do publisher baseada no ambiente
+        var isDevelopment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+        var useAzureEmulator = cfg.GetValue<bool>("AzureStorage:UseEmulator", true);
+        
+        if (isDevelopment && !useAzureEmulator)
+        {
+            // Usa mock em desenvolvimento quando não quiser usar o emulador
+            s.AddScoped<IPaymentProcessingPublisher, MockPaymentPublisher>();
+        }
+        else
+        {
+            // Usa Azure Queue (real ou emulador)
+            s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
+            s.AddScoped<AzureQueuePaymentPublisher>(); // Registra também a classe concreta para o HealthCheck
+        }
         
         // Configuração de logging
         s.AddLogging();
@@ -56,12 +69,28 @@ public static class CompositionRoot
         
         // Health checks customizados
         s.AddScoped<DatabaseHealthCheck>();
-        s.AddScoped<AzureQueueHealthCheck>();
+        
+        if (isDevelopment && !useAzureEmulator)
+        {
+            s.AddScoped<MockQueueHealthCheck>();
+        }
+        else
+        {
+            s.AddScoped<AzureQueueHealthCheck>();
+        }
 
         // Health checks
-        s.AddHealthChecks()
-            .AddCheck<DatabaseHealthCheck>("database")
-            .AddCheck<AzureQueueHealthCheck>("azure_queue");
+        var healthChecksBuilder = s.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database");
+            
+        if (isDevelopment && !useAzureEmulator)
+        {
+            healthChecksBuilder.AddCheck<MockQueueHealthCheck>("mock_queue");
+        }
+        else
+        {
+            healthChecksBuilder.AddCheck<AzureQueueHealthCheck>("azure_queue");
+        }
 
         return s;
     }
