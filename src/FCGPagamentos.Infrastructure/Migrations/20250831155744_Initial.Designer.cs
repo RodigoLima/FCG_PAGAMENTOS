@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FCGPagamentos.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250829210217_Initial")]
+    [Migration("20250831155744_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -61,7 +61,7 @@ namespace FCGPagamentos.Infrastructure.Migrations
                     b.ToTable("payments", (string)null);
                 });
 
-            modelBuilder.Entity("FCGPagamentos.Infrastructure.Persistence.EventLog", b =>
+            modelBuilder.Entity("FCGPagamentos.Infrastructure.Persistence.EventStore", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -69,27 +69,38 @@ namespace FCGPagamentos.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("AggregateId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("OccurredAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at")
-                        .HasDefaultValueSql("now()");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Payload")
                         .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("payload");
+                        .HasColumnType("text");
 
                     b.Property<string>("Type")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("type");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Type");
+                    b.HasIndex("AggregateId");
 
-                    b.ToTable("events", (string)null);
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("Version");
+
+                    b.ToTable("EventStore", (string)null);
                 });
 
             modelBuilder.Entity("FCGPagamentos.Domain.Entities.Payment", b =>
