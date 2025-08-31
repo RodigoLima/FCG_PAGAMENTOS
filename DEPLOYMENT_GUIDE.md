@@ -566,5 +566,5 @@ curl -f https://fcg-pagamentos-prod-api.azurewebsites.net/health
 
 ---
 
-**Versão do Guia**: 1.0.0  
+**Versão do Guia**: 1.1.0 - Event Sourcing e Observabilidade Completa  
 **Mantido por**: Equipe de DevOps FCG
