@@ -22,9 +22,11 @@ public static class CompositionRoot
             options.UseNpgsql(cs);
         });
 
+        // Event Sourcing
+        s.AddScoped<IEventStore, EventStoreRepository>();
+
         // Repositórios / Adapters
         s.AddScoped<IPaymentRepository, PaymentRepository>();
-        s.AddScoped<IEventStore, EventStore>();    
 
         // Infra auxiliar
         s.AddSingleton<IClock, SystemClock>();
