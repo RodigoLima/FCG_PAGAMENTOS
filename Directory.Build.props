@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <!-- Configurações globais para todos os projetos -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Configurações de cobertura de código -->
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildThisFileDirectory)coverage.cobertura.xml</CoverletOutput>
+    <ExcludeByFile>**/*.g.cs,**/*.g.i.cs,**/*.Designer.cs,**/*.AssemblyInfo.cs</ExcludeByFile>
+    <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+    
+    <!-- Configurações de build -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <WarningsNotAsErrors />
+  </PropertyGroup>
+</Project>
