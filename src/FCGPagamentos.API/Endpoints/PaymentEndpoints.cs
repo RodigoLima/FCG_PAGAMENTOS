@@ -12,7 +12,7 @@ public static class PaymentEndpoints
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/payments", async (CreatePaymentCommand cmd, CreatePaymentHandler h, IValidator<CreatePaymentCommand> v, 
-            BusinessMetricsService metrics, IStructuredLoggingService logging, IEventStore eventStore, HttpContext context, CancellationToken ct) =>
+            BusinessMetricsService metrics, IStructuredLoggingService logging, HttpContext context, CancellationToken ct) =>
         {
             var stopwatch = Stopwatch.StartNew();
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
@@ -36,19 +36,6 @@ public static class PaymentEndpoints
                 
                 // Processamento
                 var dto = await h.Handle(cmd, ct);
-                
-                // Event Sourcing - Registrar evento de pagamento solicitado
-                var paymentRequestedEvent = new PaymentRequested(
-                    dto.Id, 
-                    cmd.UserId, 
-                    cmd.GameId, 
-                    cmd.Amount, 
-                    cmd.Currency, 
-                    cmd.Description, 
-                    cmd.PaymentMethod,
-                    1); // Initial version
-                
-                await eventStore.AppendAsync(paymentRequestedEvent, DateTime.UtcNow, ct);
                 
                 // Log de sucesso
                 logging.LogPaymentSuccess(dto.Id, dto.Amount, correlationId);
