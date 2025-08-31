@@ -4,6 +4,7 @@ using FCGPagamentos.Application.UseCases.GetPayment;
 using FCGPagamentos.Infrastructure.Clock;
 using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Infrastructure.Persistence.Repositories;
+using FCGPagamentos.Infrastructure.Queues;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,7 @@ public static class CompositionRoot
 
         // Repositórios / Adapters
         s.AddScoped<IPaymentRepository, PaymentRepository>();
-        s.AddScoped<IEventStore, EventStore>();    // <- IMPLEMENTAÇÃO correta
+        s.AddScoped<IEventStore, EventStore>();    
 
         // Infra auxiliar
         s.AddSingleton<IClock, SystemClock>();
@@ -32,6 +33,8 @@ public static class CompositionRoot
         s.AddScoped<CreatePaymentHandler>();
         s.AddScoped<GetPaymentHandler>();
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
+
+        s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
 
         // Health checks
         s.AddHealthChecks();
