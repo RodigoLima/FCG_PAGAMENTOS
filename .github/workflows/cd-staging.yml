@@ -1,0 +1,50 @@
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: fcg-pagamentos-api-staging
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/FCGPagamentos.API'
+  DOTNET_VERSION: '8.0.x'
+  ENVIRONMENT: 'staging'
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Build and publish
+      run: |
+        dotnet restore
+        dotnet build --configuration Release --no-restore
+        dotnet publish ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }} -c Release -o ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/myapp
+        
+    - name: Deploy to Staging
+      uses: Azure/functions-action@v1
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/myapp
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_STAGING_PUBLISH_PROFILE }}
+        
+    - name: Run smoke tests
+      run: |
+        echo "🧪 Running smoke tests against staging environment..."
+        # Aqui você pode adicionar testes básicos de saúde da API
+        curl -f https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/health || exit 1
+        
+    - name: Notify deployment success
+      run: |
+        echo "✅ Staging deployment completed successfully!"
+        echo "🌐 Staging API: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net"
+        echo "🔍 Health Check: https://${{ env.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net/health"
