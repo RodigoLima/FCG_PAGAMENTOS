@@ -5,8 +5,13 @@ using FCGPagamentos.Infrastructure.Clock;
 using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Infrastructure.Persistence.Repositories;
 using FCGPagamentos.Infrastructure.Queues;
+using FCGPagamentos.API.Services;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
+using Serilog;
 
 namespace FCGPagamentos.API.DI;
 
@@ -22,11 +27,9 @@ public static class CompositionRoot
             options.UseNpgsql(cs);
         });
 
-        // Event Sourcing
-        s.AddScoped<IEventStore, EventStoreRepository>();
-
         // Repositórios / Adapters
         s.AddScoped<IPaymentRepository, PaymentRepository>();
+        s.AddScoped<IEventStore, EventStore>();    
 
         // Infra auxiliar
         s.AddSingleton<IClock, SystemClock>();
@@ -38,9 +41,52 @@ public static class CompositionRoot
 
         s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
 
+        // Serviços de observabilidade
+        s.AddSingleton<BusinessMetricsService>();
+        s.AddScoped<IStructuredLoggingService, StructuredLoggingService>();
+
         // Health checks
         s.AddHealthChecks();
 
         return s;
+    }
+
+    public static IServiceCollection AddObservability(this IServiceCollection s, IConfiguration cfg)
+    {
+        // Configuração do OpenTelemetry
+        s.AddOpenTelemetry()
+            .ConfigureResource(resource => resource
+                .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0"))
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation()
+                .AddEntityFrameworkCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddJaegerExporter(options =>
+                {
+                    options.AgentHost = cfg["Jaeger:Host"] ?? "localhost";
+                    options.AgentPort = int.Parse(cfg["Jaeger:Port"] ?? "6831");
+                })
+                .AddConsoleExporter())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddPrometheusExporter());
+
+        return s;
+    }
+
+    public static IHostBuilder AddSerilog(this IHostBuilder builder)
+    {
+        Log.Logger = new LoggerConfiguration()
+            .WriteTo.Console()
+            .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Application", "FCGPagamentos.API")
+            .CreateLogger();
+
+        builder.UseSerilog();
+
+        return builder;
     }
 }
