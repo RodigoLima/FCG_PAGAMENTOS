@@ -8,7 +8,7 @@ public class PaymentCreated : Event
 {
     public Guid UserId { get; private set; }
     public Guid GameId { get; private set; }
-    public Money Value { get; private set; }
+    public Money Value { get; private set; } = null!;
 
     public PaymentCreated(Guid paymentId, Guid userId, Guid gameId, Money value, long version) 
         : base(paymentId.ToString(), version)
@@ -34,17 +34,4 @@ public class PaymentProcessed : Event
     protected PaymentProcessed() { } // Para EF
 }
 
-public class PaymentFailed : Event
-{
-    public DateTime FailedAt { get; private set; }
-    public string? Reason { get; private set; }
 
-    public PaymentFailed(Guid paymentId, DateTime failedAt, string? reason, long version) 
-        : base(paymentId.ToString(), version)
-    {
-        FailedAt = failedAt;
-        Reason = reason;
-    }
-
-    protected PaymentFailed() { } // Para EF
-}

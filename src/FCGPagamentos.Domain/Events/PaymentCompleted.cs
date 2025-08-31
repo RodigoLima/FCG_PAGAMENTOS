@@ -4,18 +4,16 @@ namespace FCGPagamentos.Domain.Events;
 
 public class PaymentCompleted : Event
 {
-    public Guid PaymentId { get; }
-    public DateTime CompletedAt { get; }
-    public string TransactionId { get; }
+    public Guid PaymentId { get; private set; }
+    public DateTime CompletedAt { get; private set; }
+    public string TransactionId { get; private set; } = string.Empty;
 
-    public PaymentCompleted(Guid paymentId, string transactionId)
+    public PaymentCompleted(Guid paymentId, string transactionId, long version) : base(paymentId.ToString(), version)
     {
-        Id = Guid.NewGuid();
         PaymentId = paymentId;
         CompletedAt = DateTime.UtcNow;
         TransactionId = transactionId;
-        AggregateId = paymentId.ToString();
-        OccurredAt = DateTime.UtcNow;
-        Version = 1;
     }
+
+    protected PaymentCompleted() { } // Para EF
 }

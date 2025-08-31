@@ -4,20 +4,15 @@ namespace FCGPagamentos.Domain.Events;
 
 public class PaymentFailed : Event
 {
-    public Guid PaymentId { get; }
-    public DateTime FailedAt { get; }
-    public string ErrorMessage { get; }
-    public string ErrorCode { get; }
+    public DateTime FailedAt { get; private set; }
+    public string? Reason { get; private set; }
 
-    public PaymentFailed(Guid paymentId, string errorMessage, string errorCode)
+    public PaymentFailed(Guid paymentId, DateTime failedAt, string? reason, long version) 
+        : base(paymentId.ToString(), version)
     {
-        Id = Guid.NewGuid();
-        PaymentId = paymentId;
-        FailedAt = DateTime.UtcNow;
-        ErrorMessage = errorMessage;
-        ErrorCode = errorCode;
-        AggregateId = paymentId.ToString();
-        OccurredAt = DateTime.UtcNow;
-        Version = 1;
+        FailedAt = failedAt;
+        Reason = reason;
     }
+
+    protected PaymentFailed() { } // Para EF
 }
