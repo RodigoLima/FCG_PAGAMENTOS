@@ -7,30 +7,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FCGPagamentos.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Criar tabela payments
-            migrationBuilder.CreateTable(
-                name: "payments",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    GameId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Status = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
-                    processed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_payments", x => x.Id);
-                });
-
-            // Criar tabela EventStore
             migrationBuilder.CreateTable(
                 name: "EventStore",
                 columns: table => new
@@ -49,16 +30,24 @@ namespace FCGPagamentos.Infrastructure.Migrations
                     table.PrimaryKey("PK_EventStore", x => x.Id);
                 });
 
-            // Criar índices
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_GameId",
-                table: "payments",
-                column: "GameId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_UserId",
-                table: "payments",
-                column: "UserId");
+            migrationBuilder.CreateTable(
+                name: "payments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameId = table.Column<Guid>(type: "uuid", nullable: false),
+                    amount = table.Column<decimal>(type: "numeric(14,2)", nullable: false),
+                    currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    processed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_payments", x => x.Id);
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_EventStore_AggregateId",
@@ -74,6 +63,16 @@ namespace FCGPagamentos.Infrastructure.Migrations
                 name: "IX_EventStore_Version",
                 table: "EventStore",
                 column: "Version");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_GameId",
+                table: "payments",
+                column: "GameId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_UserId",
+                table: "payments",
+                column: "UserId");
         }
 
         /// <inheritdoc />
