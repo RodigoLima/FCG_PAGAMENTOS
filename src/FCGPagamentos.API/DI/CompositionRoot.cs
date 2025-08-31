@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 using Serilog;
+using System.Diagnostics.Metrics;
 
 namespace FCGPagamentos.API.DI;
 
@@ -29,7 +30,7 @@ public static class CompositionRoot
 
         // Repositórios / Adapters
         s.AddScoped<IPaymentRepository, PaymentRepository>();
-        s.AddScoped<IEventStore, EventStore>();    
+        s.AddScoped<IEventStore, EventStoreRepository>();    
 
         // Infra auxiliar
         s.AddSingleton<IClock, SystemClock>();
@@ -72,22 +73,13 @@ public static class CompositionRoot
                 .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0"))
             .WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
-                .AddEntityFrameworkCoreInstrumentation()
+                // Removed EntityFrameworkCore instrumentation as it only has beta versions
                 .AddHttpClientInstrumentation()
-                .AddJaegerExporter(options =>
-                {
-                    options.AgentHost = cfg["Jaeger:Host"] ?? "localhost";
-                    options.AgentPort = int.Parse(cfg["Jaeger:Port"] ?? "6831");
-                })
+                // Removed Jaeger exporter as it only has RC versions
                 .AddConsoleExporter())
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddRuntimeInstrumentation()
-                .AddPrometheusExporter(options =>
-                {
-                    options.ScrapeResponseCacheDurationMilliseconds = 0;
-                }));
+                .AddHttpClientInstrumentation());
 
         return s;
     }

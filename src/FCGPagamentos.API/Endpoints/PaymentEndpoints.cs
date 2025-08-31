@@ -45,7 +45,8 @@ public static class PaymentEndpoints
                     cmd.Amount, 
                     cmd.Currency, 
                     cmd.Description, 
-                    cmd.PaymentMethod);
+                    cmd.PaymentMethod,
+                    1); // Initial version
                 
                 await eventStore.AppendAsync(paymentRequestedEvent, DateTime.UtcNow, ct);
                 

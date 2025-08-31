@@ -4,13 +4,13 @@ namespace FCGPagamentos.Domain.Events;
 
 public class PaymentRequested : Event
 {
-    public Guid PaymentId { get; }
-    public Guid UserId { get; }
-    public Guid GameId { get; }
-    public decimal Amount { get; }
-    public string Currency { get; }
-    public string Description { get; }
-    public string PaymentMethod { get; }
+    public Guid PaymentId { get; private set; }
+    public Guid UserId { get; private set; }
+    public Guid GameId { get; private set; }
+    public decimal Amount { get; private set; }
+    public string Currency { get; private set; } = string.Empty;
+    public string Description { get; private set; } = string.Empty;
+    public string PaymentMethod { get; private set; } = string.Empty;
 
     public PaymentRequested(
         Guid paymentId, 
@@ -19,9 +19,9 @@ public class PaymentRequested : Event
         decimal amount, 
         string currency, 
         string description, 
-        string paymentMethod)
+        string paymentMethod,
+        long version) : base(paymentId.ToString(), version)
     {
-        Id = Guid.NewGuid();
         PaymentId = paymentId;
         UserId = userId;
         GameId = gameId;
@@ -29,8 +29,7 @@ public class PaymentRequested : Event
         Currency = currency;
         Description = description;
         PaymentMethod = paymentMethod;
-        AggregateId = paymentId.ToString();
-        OccurredAt = DateTime.UtcNow;
-        Version = 1;
     }
+
+    protected PaymentRequested() { } // Para EF
 }

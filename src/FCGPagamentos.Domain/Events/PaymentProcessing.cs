@@ -4,16 +4,14 @@ namespace FCGPagamentos.Domain.Events;
 
 public class PaymentProcessing : Event
 {
-    public Guid PaymentId { get; }
-    public DateTime StartedAt { get; }
+    public Guid PaymentId { get; private set; }
+    public DateTime StartedAt { get; private set; }
 
-    public PaymentProcessing(Guid paymentId)
+    public PaymentProcessing(Guid paymentId, long version) : base(paymentId.ToString(), version)
     {
-        Id = Guid.NewGuid();
         PaymentId = paymentId;
         StartedAt = DateTime.UtcNow;
-        AggregateId = paymentId.ToString();
-        OccurredAt = DateTime.UtcNow;
-        Version = 1;
     }
+
+    protected PaymentProcessing() { } // Para EF
 }

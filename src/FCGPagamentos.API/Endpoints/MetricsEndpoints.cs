@@ -8,14 +8,8 @@ public static class MetricsEndpoints
     public static IEndpointRouteBuilder MapMetricsEndpoints(this IEndpointRouteBuilder app)
     {
         // Endpoint para métricas Prometheus
-        app.MapGet("/metrics", async (MeterProvider meterProvider) =>
+        app.MapGet("/metrics", () =>
         {
-            using var stream = new MemoryStream();
-            using var writer = new StreamWriter(stream);
-            
-            // Exporta métricas no formato Prometheus
-            var metrics = meterProvider.GetMeter("FCGPagamentos");
-            
             // Aqui você pode adicionar lógica para exportar métricas específicas
             // Por enquanto, retorna um placeholder
             return Results.Ok("FCGPagamentos metrics endpoint - Prometheus format");
