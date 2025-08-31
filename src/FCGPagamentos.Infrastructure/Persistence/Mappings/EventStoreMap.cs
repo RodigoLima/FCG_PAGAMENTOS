@@ -7,7 +7,7 @@ public class EventStoreMap : IEntityTypeConfiguration<EventStore>
 {
     public void Configure(EntityTypeBuilder<EventStore> builder)
     {
-        builder.ToTable("EventStore");
+        builder.ToTable("event_store");
 
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedOnAdd();

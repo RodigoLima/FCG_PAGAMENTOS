@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FCGPagamentos.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250831185120_InitialMigration")]
-    partial class InitialMigration
+    [Migration("20250831185856_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -100,7 +100,7 @@ namespace FCGPagamentos.Infrastructure.Migrations
 
                     b.HasIndex("Version");
 
-                    b.ToTable("EventStore", (string)null);
+                    b.ToTable("event_store", (string)null);
                 });
 
             modelBuilder.Entity("FCGPagamentos.Domain.Entities.Payment", b =>

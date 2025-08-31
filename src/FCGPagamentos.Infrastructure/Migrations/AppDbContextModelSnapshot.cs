@@ -97,7 +97,7 @@ namespace FCGPagamentos.Infrastructure.Migrations
 
                     b.HasIndex("Version");
 
-                    b.ToTable("EventStore", (string)null);
+                    b.ToTable("event_store", (string)null);
                 });
 
             modelBuilder.Entity("FCGPagamentos.Domain.Entities.Payment", b =>
