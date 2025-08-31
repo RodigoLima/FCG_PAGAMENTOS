@@ -14,11 +14,13 @@ public class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Extrai ou gera correlation ID
         var correlationId = GetOrGenerateCorrelationId(context);
         
-        // Adiciona ao contexto para uso posterior
+        // Adiciona ao contexto para uso nos endpoints
         context.Items["CorrelationId"] = correlationId;
+        
+        // Adiciona ao header de resposta
+        context.Response.Headers[CorrelationIdHeader] = correlationId;
         
         // Adiciona ao Activity.Current para OpenTelemetry
         if (Activity.Current != null)
@@ -26,22 +28,18 @@ public class CorrelationIdMiddleware
             Activity.Current.SetTag("correlation.id", correlationId);
         }
         
-        // Adiciona header de resposta
-        context.Response.Headers[CorrelationIdHeader] = correlationId;
-        
         await _next(context);
     }
 
     private static string GetOrGenerateCorrelationId(HttpContext context)
     {
-        // Tenta extrair do header da requisição
-        if (context.Request.Headers.TryGetValue(CorrelationIdHeader, out var correlationId) && 
-            !string.IsNullOrEmpty(correlationId))
+        // Tenta obter do header da requisição
+        if (context.Request.Headers.TryGetValue(CorrelationIdHeader, out var correlationId))
         {
-            return correlationId;
+            return correlationId.ToString();
         }
         
-        // Gera novo se não existir
+        // Gera um novo se não existir
         return Guid.NewGuid().ToString();
     }
 }

@@ -1,62 +1,34 @@
-using System.Diagnostics;
+using OpenTelemetry.Metrics;
 using System.Diagnostics.Metrics;
 
 namespace FCGPagamentos.API.Services;
 
 public class BusinessMetricsService
 {
-    private readonly Meter _meter;
-    private readonly Counter<long> _paymentRequestsCounter;
+    private readonly Counter<long> _paymentRequestCounter;
     private readonly Counter<long> _paymentSuccessCounter;
     private readonly Counter<long> _paymentFailureCounter;
-    private readonly Histogram<double> _paymentProcessingTime;
-    private readonly Counter<long> _totalAmountProcessed;
+    private readonly Histogram<double> _paymentAmountHistogram;
+    private readonly Histogram<double> _paymentProcessingTimeHistogram;
+    private readonly Counter<long> _queueMessagePublishedCounter;
+    private readonly Counter<long> _queueMessageFailedCounter;
 
-    public BusinessMetricsService()
+    public BusinessMetricsService(Meter meter)
     {
-        _meter = new Meter("FCGPagamentos", "1.0.0");
-        
-        // Contadores para diferentes tipos de eventos
-        _paymentRequestsCounter = _meter.CreateCounter<long>("payment_requests_total", "Total de requisições de pagamento");
-        _paymentSuccessCounter = _meter.CreateCounter<long>("payment_success_total", "Total de pagamentos com sucesso");
-        _paymentFailureCounter = _meter.CreateCounter<long>("payment_failure_total", "Total de pagamentos com falha");
-        
-        // Histograma para tempo de processamento
-        _paymentProcessingTime = _meter.CreateHistogram<double>("payment_processing_time_seconds", "Tempo de processamento dos pagamentos");
-        
-        // Contador para valor total processado
-        _totalAmountProcessed = _meter.CreateCounter<long>("payment_amount_total", "Valor total processado em centavos");
+        _paymentRequestCounter = meter.CreateCounter<long>("fcg.payments.requested", "Number of payment requests");
+        _paymentSuccessCounter = meter.CreateCounter<long>("fcg.payments.completed", "Number of successful payments");
+        _paymentFailureCounter = meter.CreateCounter<long>("fcg.payments.failed", "Number of failed payments");
+        _paymentAmountHistogram = meter.CreateHistogram<double>("fcg.payments.amount", "Payment amount distribution");
+        _paymentProcessingTimeHistogram = meter.CreateHistogram<double>("fcg.payments.processing_time", "Payment processing time");
+        _queueMessagePublishedCounter = meter.CreateCounter<long>("fcg.queue.messages.published", "Number of messages published to queue");
+        _queueMessageFailedCounter = meter.CreateCounter<long>("fcg.queue.messages.failed", "Number of failed queue messages");
     }
 
-    public void RecordPaymentRequest()
-    {
-        _paymentRequestsCounter.Add(1);
-    }
-
-    public void RecordPaymentSuccess()
-    {
-        _paymentSuccessCounter.Add(1);
-    }
-
-    public void RecordPaymentFailure()
-    {
-        _paymentFailureCounter.Add(1);
-    }
-
-    public void RecordPaymentAmount(decimal amount)
-    {
-        // Converte para centavos para evitar problemas com decimal
-        var amountInCents = (long)(amount * 100);
-        _totalAmountProcessed.Add(amountInCents);
-    }
-
-    public IDisposable MeasurePaymentProcessingTime()
-    {
-        return _paymentProcessingTime.NewTimer();
-    }
-
-    public void RecordPaymentProcessingTime(double seconds)
-    {
-        _paymentProcessingTime.Record(seconds);
-    }
+    public void RecordPaymentRequest() => _paymentRequestCounter.Add(1);
+    public void RecordPaymentSuccess() => _paymentSuccessCounter.Add(1);
+    public void RecordPaymentFailure() => _paymentFailureCounter.Add(1);
+    public void RecordPaymentAmount(decimal amount) => _paymentAmountHistogram.Record((double)amount);
+    public void RecordPaymentProcessingTime(double seconds) => _paymentProcessingTimeHistogram.Record(seconds);
+    public void RecordQueueMessagePublished() => _queueMessagePublishedCounter.Add(1);
+    public void RecordQueueMessageFailed() => _queueMessageFailedCounter.Add(1);
 }

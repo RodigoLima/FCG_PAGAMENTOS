@@ -40,13 +40,26 @@ public static class CompositionRoot
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
         s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
+        
+        // Configuração de logging
+        s.AddLogging();
 
         // Serviços de observabilidade
-        s.AddSingleton<BusinessMetricsService>();
+        s.AddSingleton<BusinessMetricsService>(provider => 
+        {
+            var meter = new Meter("FCGPagamentos", "1.0.0");
+            return new BusinessMetricsService(meter);
+        });
         s.AddScoped<IStructuredLoggingService, StructuredLoggingService>();
+        
+        // Health checks customizados
+        s.AddScoped<DatabaseHealthCheck>();
+        s.AddScoped<AzureQueueHealthCheck>();
 
         // Health checks
-        s.AddHealthChecks();
+        s.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database")
+            .AddCheck<AzureQueueHealthCheck>("azure_queue");
 
         return s;
     }
@@ -71,7 +84,10 @@ public static class CompositionRoot
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                .AddPrometheusExporter());
+                .AddPrometheusExporter(options =>
+                {
+                    options.ScrapeResponseCacheDurationMilliseconds = 0;
+                }));
 
         return s;
     }

@@ -70,9 +70,14 @@ graph TB
 - ✅ Validação de dados com FluentValidation
 - ✅ Persistência em PostgreSQL
 - ✅ Publicação em Azure Queue para processamento assíncrono
-- ✅ Health checks
+- ✅ Health checks completos (Database + Azure Queue)
 - ✅ Swagger/OpenAPI
 - ✅ Application Insights para telemetria
+- ✅ **Event Sourcing completo** com eventos de domínio
+- ✅ **Observabilidade completa** com OpenTelemetry + Prometheus
+- ✅ **Correlation ID** para rastreamento distribuído
+- ✅ **Métricas de negócio** específicas do domínio
+- ✅ **API Gateway** configurado (Azure API Management)
 
 ### 🔄 Processamento Assíncrono
 1. **Criação**: API recebe requisição e retorna 202 (Accepted)
@@ -94,7 +99,8 @@ Cria um novo pagamento.
   "amount": 100.50,
   "currency": "BRL",
   "description": "Pagamento de serviço",
-  "payerId": "12345",
+  "userId": "123e4567-e89b-12d3-a456-426614174000",
+  "gameId": "987fcdeb-51a2-43d1-9f12-345678901234",
   "paymentMethod": "PIX"
 }
 ```
@@ -113,10 +119,22 @@ Consulta um pagamento pelo ID.
 - **404 Not Found**: Pagamento não encontrado
 
 #### GET /health
-Health check do serviço.
+Health check básico do serviço.
 
 **Response:**
 - **200 OK**: Serviço saudável
+
+#### GET /health/detailed
+Health check detalhado com status de todas as dependências.
+
+**Response:**
+- **200 OK**: Status detalhado de Database, Azure Queue e outras dependências
+
+#### GET /metrics
+Métricas Prometheus para monitoramento.
+
+**Response:**
+- **200 OK**: Métricas no formato Prometheus
 
 ### Modelos de Dados
 
@@ -148,6 +166,10 @@ Health check do serviço.
 - **Application Insights**: Telemetria e monitoramento
 - **Swagger/OpenAPI**: Documentação da API
 - **PostgreSQL**: Banco de dados principal
+- **OpenTelemetry**: Observabilidade e rastreamento distribuído
+- **Prometheus**: Métricas e monitoramento
+- **Event Sourcing**: Registro de eventos de domínio
+- **Correlation ID**: Rastreamento de requisições
 
 ## 🚀 Deploy e Configuração
 

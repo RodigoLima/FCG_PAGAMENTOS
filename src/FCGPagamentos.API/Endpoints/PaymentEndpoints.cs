@@ -1,6 +1,8 @@
 ﻿using FCGPagamentos.Application.UseCases.CreatePayment;
 using FCGPagamentos.Application.UseCases.GetPayment;
 using FCGPagamentos.API.Services;
+using FCGPagamentos.Application.Abstractions;
+using FCGPagamentos.Domain.Events;
 using FluentValidation;
 using System.Diagnostics;
 
@@ -10,7 +12,7 @@ public static class PaymentEndpoints
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/payments", async (CreatePaymentCommand cmd, CreatePaymentHandler h, IValidator<CreatePaymentCommand> v, 
-            BusinessMetricsService metrics, IStructuredLoggingService logging, HttpContext context, CancellationToken ct) =>
+            BusinessMetricsService metrics, IStructuredLoggingService logging, IEventStore eventStore, HttpContext context, CancellationToken ct) =>
         {
             var stopwatch = Stopwatch.StartNew();
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
@@ -35,6 +37,18 @@ public static class PaymentEndpoints
                 // Processamento
                 var dto = await h.Handle(cmd, ct);
                 
+                // Event Sourcing - Registrar evento de pagamento solicitado
+                var paymentRequestedEvent = new PaymentRequested(
+                    dto.Id, 
+                    cmd.UserId, 
+                    cmd.GameId, 
+                    cmd.Amount, 
+                    cmd.Currency, 
+                    cmd.Description, 
+                    cmd.PaymentMethod);
+                
+                await eventStore.AppendAsync(paymentRequestedEvent, DateTime.UtcNow, ct);
+                
                 // Log de sucesso
                 logging.LogPaymentSuccess(dto.Id, dto.Amount, correlationId);
                 
@@ -46,7 +60,7 @@ public static class PaymentEndpoints
                 stopwatch.Stop();
                 metrics.RecordPaymentProcessingTime(stopwatch.Elapsed.TotalSeconds);
                 
-                // Retornar 202/201; vou usar 202 para indicar processamento assíncrono futuro
+                // Retornar 202 para indicar processamento assíncrono
                 return Results.Accepted($"/payments/{dto.Id}", dto);
             }
             catch (Exception ex)
