@@ -14,8 +14,7 @@ public static class MetricsEndpoints
             // Por enquanto, retorna um placeholder
             return Results.Ok("FCGPagamentos metrics endpoint - Prometheus format");
         })
-        .WithName("GetMetrics")
-        .WithSummary("Endpoint para métricas Prometheus");
+        .ExcludeFromDescription(); // Remove do Swagger
 
         // Health check detalhado
         app.MapGet("/health/detailed", async (HealthCheckService healthCheckService) =>
@@ -38,8 +37,7 @@ public static class MetricsEndpoints
             
             return Results.Ok(result);
         })
-        .WithName("GetDetailedHealth")
-        .WithSummary("Health check detalhado com todas as dependências");
+        .ExcludeFromDescription(); // Remove do Swagger
 
         return app;
     }

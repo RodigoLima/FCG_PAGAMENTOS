@@ -71,7 +71,14 @@ public static class PaymentEndpoints
                 logging.LogPaymentFailure(cmd.Id, cmd.Amount, ex.Message, correlationId);
                 throw;
             }
-        });
+        })
+        .WithName("CreatePayment")
+        .WithSummary("Cria um novo pagamento")
+        .WithDescription("Cria um novo pagamento no sistema e retorna o ID do pagamento criado")
+        .WithTags("Payments")
+        .Produces<FCGPagamentos.Application.DTOs.PaymentDto>(StatusCodes.Status202Accepted)
+        .ProducesValidationProblem()
+        .Produces(StatusCodes.Status500InternalServerError);
 
         app.MapGet("/payments/{id:guid}", async (Guid id, GetPaymentHandler h, 
             IStructuredLoggingService logging, HttpContext context, CancellationToken ct) =>
@@ -96,7 +103,14 @@ public static class PaymentEndpoints
                 logging.LogPaymentFailure(id, 0, ex.Message, correlationId);
                 throw;
             }
-        });
+        })
+        .WithName("GetPayment")
+        .WithSummary("Obtém um pagamento por ID")
+        .WithDescription("Recupera as informações de um pagamento específico pelo seu ID")
+        .WithTags("Payments")
+        .Produces<FCGPagamentos.Application.DTOs.PaymentDto>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound)
+        .Produces(StatusCodes.Status500InternalServerError);
 
         // Endpoint para testar Event Sourcing
         app.MapGet("/payments/{id:guid}/events", async (Guid id, IEventStore eventStore, CancellationToken ct) =>
@@ -105,7 +119,11 @@ public static class PaymentEndpoints
             return Results.Ok(events);
         })
         .WithName("GetPaymentEvents")
-        .WithSummary("Obtém todos os eventos de um pagamento (Event Sourcing)");
+        .WithSummary("Obtém todos os eventos de um pagamento (Event Sourcing)")
+        .WithDescription("Recupera o histórico completo de eventos de um pagamento para auditoria")
+        .WithTags("Events")
+        .Produces<object[]>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status500InternalServerError);
 
         app.MapHealthChecks("/health");
         return app;

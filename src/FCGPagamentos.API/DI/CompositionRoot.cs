@@ -41,6 +41,7 @@ public static class CompositionRoot
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
         s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
+        s.AddScoped<AzureQueuePaymentPublisher>(); // Registra também a classe concreta para o HealthCheck
         
         // Configuração de logging
         s.AddLogging();
