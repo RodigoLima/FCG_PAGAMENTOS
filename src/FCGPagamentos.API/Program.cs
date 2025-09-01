@@ -56,6 +56,6 @@ app.MapGet("/", () => Results.Redirect("/swagger"))
 // Seus endpoints customizados
 app.MapPaymentEndpoints();
 app.MapMetricsEndpoints();
-
+app.MapInternal(); 
 Console.WriteLine("Aplicação configurada. Iniciando servidor...");
 app.Run();
