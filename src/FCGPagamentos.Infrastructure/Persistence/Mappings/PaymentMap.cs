@@ -35,6 +35,10 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
 
         b.Property(x => x.ProcessedAt).HasColumnName("processed_at");
 
+        // Mapeamento dos timestamps
+        b.Property(x => x.CreatedAt).HasColumnName("created_at");
+        b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
         b.HasIndex(x => x.UserId);
         b.HasIndex(x => x.GameId);
     }

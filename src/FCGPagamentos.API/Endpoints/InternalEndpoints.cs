@@ -35,6 +35,32 @@ public static class InternalEndpoints
             return Results.NoContent();
         })
         .ExcludeFromDescription(); // não expor no Swagger
+
+        app.MapPut("/internal/payments/{id:guid}/update-value", async (
+            Guid id, decimal newAmount, AppDbContext db, HttpRequest req, IConfiguration cfg) =>
+        {
+            // Autorização simples entre serviços (segredo compartilhado)
+            var token = req.Headers["x-internal-token"].ToString();
+            if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
+                return Results.Unauthorized();
+
+            var p = await db.Payments.FirstOrDefaultAsync(x => x.Id == id);
+            if (p is null) return Results.NotFound();
+
+            // Atualiza o valor do pagamento
+            p.Value = new FCGPagamentos.Domain.ValueObjects.Money(newAmount, "BRL");
+            
+            // O interceptor automaticamente atualizará o UpdatedAt aqui
+            await db.SaveChangesAsync();
+            
+            return Results.Ok(new { 
+                Id = p.Id, 
+                Value = p.Value.Amount, 
+                CreatedAt = p.CreatedAt, 
+                UpdatedAt = p.UpdatedAt 
+            });
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
         return app;
     }
 }
