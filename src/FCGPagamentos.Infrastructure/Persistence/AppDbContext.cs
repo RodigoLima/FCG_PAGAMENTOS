@@ -1,11 +1,17 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using FCGPagamentos.Domain.Entities;
+using FCGPagamentos.Infrastructure.Persistence.Interceptors;
 
 namespace FCGPagamentos.Infrastructure.Persistence;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> opt) : base(opt) { }
+    private readonly UpdateTimestampInterceptor _updateTimestampInterceptor;
+
+    public AppDbContext(DbContextOptions<AppDbContext> opt) : base(opt) 
+    {
+        _updateTimestampInterceptor = new UpdateTimestampInterceptor();
+    }
 
     // DbSets -> representam suas tabelas
     public DbSet<Payment> Payments => Set<Payment>();
@@ -21,6 +27,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Payment>()
             .Ignore(p => p.UncommittedEvents)
             .Ignore(p => p.Version);
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.AddInterceptors(_updateTimestampInterceptor);
     }
 }
 
