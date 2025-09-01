@@ -22,8 +22,14 @@ public static class InternalEndpoints
 
             p.MarkProcessed(DateTime.UtcNow);
             
-            // Salva o evento usando Event Sourcing
-            await eventStore.AppendAsync("PaymentProcessed", new { p.Id }, DateTime.UtcNow, CancellationToken.None);
+            // Salva os eventos não commitados usando Event Sourcing
+            foreach (var @event in p.UncommittedEvents)
+            {
+                await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
+            }
+            
+            // Marca os eventos como commitados
+            p.MarkEventsAsCommitted();
 
             await db.SaveChangesAsync();
             return Results.NoContent();
