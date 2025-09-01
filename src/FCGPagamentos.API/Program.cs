@@ -11,7 +11,8 @@ b.Host.AddSerilog();
 b.Services.AddAppServices(b.Configuration);
 
 // Configuração da observabilidade
-b.Services.AddObservability(b.Configuration);
+// TEMPORARIAMENTE DESATIVADO - OpenTelemetry
+// b.Services.AddObservability(b.Configuration);
 
 // Adiciona Swagger
 b.Services.AddEndpointsApiExplorer();
