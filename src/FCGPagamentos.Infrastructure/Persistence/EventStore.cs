@@ -1,4 +1,6 @@
 using FCGPagamentos.Application.Abstractions;
+using FCGPagamentos.Domain.Entities;
+using FCGPagamentos.Domain.Enums;
 using FCGPagamentos.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -16,157 +18,87 @@ public class EventStoreRepository : IEventStore
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-            IncludeFields = false,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never
+            WriteIndented = false
         };
     }
 
     public async Task AppendAsync(string type, object payload, DateTime occurredAt, CancellationToken ct)
     {
-        var eventStore = new Infrastructure.Persistence.EventStore
-        {
-            EventId = Guid.NewGuid(),
-            Type = type,
-            Payload = JsonSerializer.Serialize(payload, _jsonOptions),
-            OccurredAt = occurredAt,
-            Version = 1,
-            AggregateId = "" // Este método genérico não tem contexto de aggregate
-        };
-
-        _context.Events.Add(eventStore);
-        await _context.SaveChangesAsync(ct);
+        // Método genérico não suportado - usar AppendAsync com Event específico
+        await Task.CompletedTask;
+        throw new NotSupportedException("Use AppendAsync with specific Event type");
     }
 
     public async Task AppendAsync<TEvent>(TEvent payload, DateTime occurredAt, CancellationToken ct)
     {
-        // Se for um Event do domínio, extrai as propriedades específicas
         if (payload is Event domainEvent)
         {
-            var eventStore = new Infrastructure.Persistence.EventStore
+            // Extrai PaymentId do AggregateId (formato: "Payment_{paymentId}")
+            var paymentIdStr = domainEvent.AggregateId.Replace("Payment_", "");
+            if (!Guid.TryParse(paymentIdStr, out var paymentId))
             {
-                EventId = domainEvent.Id,
-                Type = domainEvent.Type,
-                Payload = JsonSerializer.Serialize(payload, _jsonOptions),
-                OccurredAt = domainEvent.OccurredAt,
-                Version = domainEvent.Version,
-                AggregateId = domainEvent.AggregateId
-            };
+                throw new ArgumentException($"Invalid PaymentId in AggregateId: {domainEvent.AggregateId}");
+            }
 
-            _context.Events.Add(eventStore);
+            // Mapeia o tipo do evento para EventType enum
+            var eventType = MapEventType(domainEvent.Type);
+
+            // Cria PaymentEvent
+            var paymentEvent = new PaymentEvent(
+                paymentId,
+                eventType,
+                JsonDocument.Parse(JsonSerializer.Serialize(payload, _jsonOptions)),
+                domainEvent.OccurredAt
+            );
+
+            _context.PaymentEvents.Add(paymentEvent);
             await _context.SaveChangesAsync(ct);
         }
         else
         {
-            // Para eventos genéricos (não recomendado para Event Sourcing)
-            var eventStore = new Infrastructure.Persistence.EventStore
-            {
-                EventId = Guid.NewGuid(),
-                Type = payload?.GetType().Name ?? "Unknown",
-                Payload = JsonSerializer.Serialize(payload, _jsonOptions),
-                OccurredAt = occurredAt,
-                Version = 1,
-                AggregateId = ""
-            };
-
-            _context.Events.Add(eventStore);
-            await _context.SaveChangesAsync(ct);
+            throw new ArgumentException("Only Event types are supported");
         }
     }
 
     public async Task<IEnumerable<Event>> GetEventsAsync(string aggregateId, CancellationToken ct)
     {
-        var events = await _context.Events
-            .Where(e => e.AggregateId == aggregateId)
-            .OrderBy(e => e.Version)
-            .ToListAsync(ct);
-
-        var result = new List<Event>();
-        foreach (var eventData in events)
-        {
-            try
-            {
-                var eventType = Type.GetType($"FCGPagamentos.Domain.Events.{eventData.Type}");
-                if (eventType != null)
-                {
-                    var @event = JsonSerializer.Deserialize(eventData.Payload, eventType, _jsonOptions) as Event;
-                    if (@event != null)
-                    {
-                        result.Add(@event);
-                    }
-                }
-                else
-                {
-                    // Log do tipo não encontrado para debug
-                    Console.WriteLine($"Tipo de evento não encontrado: {eventData.Type}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erro ao deserializar evento {eventData.EventId}: {ex.Message}");
-            }
-        }
-
-        return result;
+        // Método não implementado - não usado no sistema atual
+        await Task.CompletedTask;
+        return Enumerable.Empty<Event>();
     }
 
     public async Task<Event?> GetEventByIdAsync(Guid eventId, CancellationToken ct)
     {
-        var eventData = await _context.Events
-            .FirstOrDefaultAsync(e => e.EventId == eventId, ct);
-
-        if (eventData == null)
-            return null;
-
-        var eventType = Type.GetType($"FCGPagamentos.Domain.Events.{eventData.Type}");
-        if (eventType == null)
-            return null;
-
-        var @event = JsonSerializer.Deserialize(eventData.Payload, eventType, _jsonOptions) as Event;
-        return @event;
+        // Método não implementado - não usado no sistema atual
+        await Task.CompletedTask;
+        return null;
     }
 
     public async Task<IEnumerable<Event>> GetAllEventsAsync(CancellationToken ct)
     {
-        var events = await _context.Events
-            .OrderBy(e => e.OccurredAt)
-            .ThenBy(e => e.Version)
-            .ToListAsync(ct);
-
-        var result = new List<Event>();
-        foreach (var eventData in events)
-        {
-            try
-            {
-                var eventType = Type.GetType($"FCGPagamentos.Domain.Events.{eventData.Type}");
-                if (eventType != null)
-                {
-                    var @event = JsonSerializer.Deserialize(eventData.Payload, eventType, _jsonOptions) as Event;
-                    if (@event != null)
-                    {
-                        result.Add(@event);
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Tipo de evento não encontrado: {eventData.Type}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erro ao deserializar evento {eventData.EventId}: {ex.Message}");
-            }
-        }
-
-        return result;
+        // Método não implementado - não usado no sistema atual
+        await Task.CompletedTask;
+        return Enumerable.Empty<Event>();
     }
 
     public async Task<long> GetNextVersionAsync(string aggregateId, CancellationToken ct)
     {
-        var lastVersion = await _context.Events
-            .Where(e => e.AggregateId == aggregateId)
-            .MaxAsync(e => (long?)e.Version, ct);
+        // Método não implementado - não usado no sistema atual
+        await Task.CompletedTask;
+        return 1;
+    }
 
-        return (lastVersion ?? 0) + 1;
+    private static EventType MapEventType(string eventType)
+    {
+        return eventType switch
+        {
+            "PaymentCreated" => EventType.PaymentCreated,
+            "PaymentQueued" => EventType.PaymentQueued,
+            "PaymentProcessing" => EventType.PaymentProcessing,
+            "PaymentApproved" => EventType.PaymentApproved,
+            "PaymentDeclined" => EventType.PaymentDeclined,
+            "PaymentFailed" => EventType.PaymentFailed,
+            _ => throw new ArgumentException($"Unknown event type: {eventType}")
+        };
     }
 }
