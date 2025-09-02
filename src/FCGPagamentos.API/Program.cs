@@ -38,15 +38,14 @@ Console.WriteLine($"Environment: {app.Environment.EnvironmentName}");
 app.UseCorrelationId();
 
 // Ativa Swagger em Development e opcionalmente em outros ambientes
-if (app.Environment.IsDevelopment())
+
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
-        c.RoutePrefix = "swagger"; // Acessível em /swagger
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+    c.RoutePrefix = "swagger"; // Acessível em /swagger
+});
+
 
 // Redirecionar raiz para Swagger
 app.MapGet("/", () => Results.Redirect("/swagger"))
