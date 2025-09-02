@@ -22,12 +22,7 @@ public class EventStoreRepository : IEventStore
         };
     }
 
-    public async Task AppendAsync(string type, object payload, DateTime occurredAt, CancellationToken ct)
-    {
-        // Método genérico não suportado - usar AppendAsync com Event específico
-        await Task.CompletedTask;
-        throw new NotSupportedException("Use AppendAsync with specific Event type");
-    }
+
 
     public async Task AppendAsync<TEvent>(TEvent payload, DateTime occurredAt, CancellationToken ct)
     {
