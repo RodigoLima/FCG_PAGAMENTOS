@@ -60,14 +60,8 @@ public static class CompositionRoot
         s.AddLogging();
 
         // Serviços de observabilidade
-        s.AddSingleton<BusinessMetricsService>(provider => 
-        {
-            var meter = new Meter("FCGPagamentos", "1.0.0");
-            return new BusinessMetricsService(meter);
-        });
-        s.AddScoped<IStructuredLoggingService, StructuredLoggingService>();
-        s.AddScoped<ITelemetryService, TelemetryService>();
-        s.AddScoped<IObservabilityDebugService, ObservabilityDebugService>();
+        s.AddScoped<IPaymentObservabilityService, PaymentObservabilityService>();
+        
         
         // Health checks customizados
         s.AddScoped<DatabaseHealthCheck>();
@@ -111,7 +105,7 @@ public static class CompositionRoot
                 .WriteTo.Console()
                 .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day);
 
-            Console.WriteLine("✅ Serilog configurado - logs serão enviados via ILogger para Application Insights");
+            // Serilog configurado
         });
     }
 }

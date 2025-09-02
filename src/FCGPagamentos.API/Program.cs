@@ -33,37 +33,38 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Log de inicialização e debug de observabilidade
-Console.WriteLine("🚀 Aplicação iniciando...");
-Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
-
-// Debug de observabilidade
-var debugService = app.Services.GetRequiredService<IObservabilityDebugService>();
-debugService.LogDebugInfo();
+// Log de inicialização
+Console.WriteLine($"FCG Pagamentos API iniciando - Environment: {app.Environment.EnvironmentName}");
 
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
 
-// Ativa Swagger em Development e opcionalmente em outros ambientes
-
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// Swagger apenas em Development
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
-    c.RoutePrefix = "swagger"; // Acessível em /swagger
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 
-// Redirecionar raiz para Swagger
-app.MapGet("/", () => Results.Redirect("/swagger"))
-    .WithName("RedirectToSwagger")
-    .WithSummary("Redireciona para o Swagger UI")
-    .ExcludeFromDescription();
+// Endpoint raiz
+app.MapGet("/", () => Results.Ok(new { 
+    Service = "FCG Pagamentos API", 
+    Version = "1.0.0",
+    Status = "Running"
+}))
+.WithName("Root")
+.WithSummary("Informações básicas da API")
+.ExcludeFromDescription();
 
-// Seus endpoints customizados
+// Endpoints da aplicação
 app.MapPaymentEndpoints();
 app.MapMetricsEndpoints();
 app.MapInternal();
-app.MapDebugEndpoints(); 
-Console.WriteLine("Aplicação configurada. Iniciando servidor...");
+
+Console.WriteLine("API configurada. Iniciando servidor...");
 app.Run();
