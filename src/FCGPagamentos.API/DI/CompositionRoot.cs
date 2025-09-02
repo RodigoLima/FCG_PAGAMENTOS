@@ -97,16 +97,32 @@ public static class CompositionRoot
 
     public static IServiceCollection AddObservability(this IServiceCollection s, IConfiguration cfg)
     {
+        var isDevelopment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
+        var enableConsoleExporter = cfg.GetValue<bool>("OpenTelemetry:EnableConsoleExporter", false);
+        var samplingRatio = cfg.GetValue<double>("OpenTelemetry:Tracing:SamplingRatio", 1.0);
+
         // Configuração do OpenTelemetry
         s.AddOpenTelemetry()
             .ConfigureResource(resource => resource
                 .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0"))
-            .WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation()
-                // Removed EntityFrameworkCore instrumentation as it only has beta versions
-                .AddHttpClientInstrumentation()
-                // Removed Jaeger exporter as it only has RC versions
-                .AddConsoleExporter())
+            .WithTracing(tracing =>
+            {
+                tracing.AddAspNetCoreInstrumentation(options =>
+                {
+                    // Configuração de sampling para reduzir volume de traces
+                    options.RecordException = true;
+                })
+                .AddHttpClientInstrumentation(options =>
+                {
+                    options.RecordException = true;
+                });
+
+                // Console exporter apenas quando explicitamente habilitado
+                if (enableConsoleExporter)
+                {
+                    tracing.AddConsoleExporter();
+                }
+            })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation());
