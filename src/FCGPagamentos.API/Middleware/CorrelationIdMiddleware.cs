@@ -22,10 +22,12 @@ public class CorrelationIdMiddleware
         // Adiciona ao header de resposta
         context.Response.Headers[CorrelationIdHeader] = correlationId;
         
-        // Adiciona ao Activity.Current para OpenTelemetry
+        // Configura o Activity para OpenTelemetry/Application Insights
         if (Activity.Current != null)
         {
             Activity.Current.SetTag("correlation.id", correlationId);
+            Activity.Current.SetTag("service.name", "FCGPagamentos.API");
+            Activity.Current.SetTag("service.version", "1.0.0");
         }
         
         await _next(context);

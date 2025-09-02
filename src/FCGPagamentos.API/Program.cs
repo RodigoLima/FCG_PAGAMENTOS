@@ -7,6 +7,18 @@ var b = WebApplication.CreateBuilder(args);
 // Configuração do Serilog
 b.Host.AddSerilog();
 
+// Configuração do Application Insights (deve vir antes de outros serviços)
+var appInsightsConnectionString = b.Configuration.GetConnectionString("ApplicationInsights");
+if (!string.IsNullOrEmpty(appInsightsConnectionString))
+{
+    b.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = appInsightsConnectionString;
+        options.EnableAdaptiveSampling = true;
+        options.EnableQuickPulseMetricStream = true;
+    });
+}
+
 // Serviços da aplicação
 b.Services.AddAppServices(b.Configuration);
 
@@ -25,13 +37,15 @@ b.Services.AddSwaggerGen(c =>
     });
 });
 
-b.Services.AddApplicationInsightsTelemetry();
-
 var app = b.Build();
 
 // Log de inicialização
 Console.WriteLine("Aplicação iniciando...");
 Console.WriteLine($"Environment: {app.Environment.EnvironmentName}");
+if (!string.IsNullOrEmpty(appInsightsConnectionString))
+{
+    Console.WriteLine("Application Insights configurado");
+}
 
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
