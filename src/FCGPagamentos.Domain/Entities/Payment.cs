@@ -32,7 +32,8 @@ public class Payment: BaseModel, IAggregateRoot
         Version = 1;
 
         // Adiciona evento de criação
-        AddEvent(new PaymentCreated(Id, userId, gameId, value, Version));
+        AddEvent(new PaymentRequested(Id, userId, gameId, value.Amount, value.Currency, 
+            $"Pagamento para jogo {gameId}", "CreditCard", Version));
     }
 
     public void MarkProcessed(DateTime now) 
@@ -40,7 +41,7 @@ public class Payment: BaseModel, IAggregateRoot
         Status = PaymentStatus.Processed; 
         ProcessedAt = now; 
         Version++;
-        AddEvent(new PaymentProcessed(Id, now, Version));
+        AddEvent(new PaymentCompleted(Id, Guid.NewGuid().ToString(), Version));
     }
 
     public void MarkFailed(DateTime now, string? reason = null) 
@@ -74,12 +75,12 @@ public class Payment: BaseModel, IAggregateRoot
     {
         switch (@event)
         {
-            case PaymentCreated e:
+            case PaymentRequested e:
                 // Estado já está correto, só atualizar versão
                 break;
-            case PaymentProcessed e:
+            case PaymentCompleted e:
                 Status = PaymentStatus.Processed;
-                ProcessedAt = e.ProcessedAt;
+                ProcessedAt = e.CompletedAt;
                 break;
             case PaymentFailed e:
                 Status = PaymentStatus.Failed;
