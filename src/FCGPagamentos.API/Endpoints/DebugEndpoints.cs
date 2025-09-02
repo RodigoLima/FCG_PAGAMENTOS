@@ -101,6 +101,42 @@ public static class DebugEndpoints
         .WithSummary("Retorna informações do sistema")
         .WithDescription("Mostra informações detalhadas do sistema e variáveis de ambiente");
 
+        // Endpoint para testar transações (aparece na Pesquisa de Transação)
+        debugGroup.MapPost("/test-transaction", async (
+            ITelemetryService telemetryService,
+            ILogger<Program> logger) =>
+        {
+            logger.LogInformation("🔍 Debug transaction endpoint chamado - criando transação de teste");
+
+            var paymentId = Guid.NewGuid();
+            var correlationId = Guid.NewGuid().ToString();
+            var amount = 100.50m;
+            var startTime = DateTime.UtcNow;
+
+            // Simula processamento
+            await Task.Delay(100);
+
+            var duration = DateTime.UtcNow - startTime;
+
+            // Rastreia como transação
+            telemetryService.TrackPaymentRequest(paymentId, amount, correlationId);
+            telemetryService.TrackPaymentSuccess(paymentId, amount, correlationId, duration);
+
+            return Results.Ok(new
+            {
+                Status = "Transação de teste criada com sucesso",
+                PaymentId = paymentId,
+                Amount = amount,
+                CorrelationId = correlationId,
+                Duration = duration.TotalMilliseconds,
+                Message = "Esta transação deve aparecer na Pesquisa de Transação do Application Insights",
+                Timestamp = DateTime.UtcNow
+            });
+        })
+        .WithName("DebugTestTransaction")
+        .WithSummary("Cria uma transação de teste para verificar na Pesquisa de Transação")
+        .WithDescription("Cria uma transação completa com Request e Dependency telemetry para aparecer na Pesquisa de Transação");
+
         return app;
     }
 }

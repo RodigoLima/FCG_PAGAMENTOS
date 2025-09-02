@@ -43,6 +43,21 @@ public class TelemetryService : ITelemetryService
 
         _telemetryClient.TrackEvent("PaymentRequest", properties, metrics);
         
+        // Adiciona Request Telemetry para aparecer na Pesquisa de Transação
+        var requestTelemetry = new RequestTelemetry
+        {
+            Name = $"POST /payments/{paymentId}",
+            Url = new Uri($"https://api-fcg-payments.azurewebsites.net/payments/{paymentId}"),
+            ResponseCode = "202",
+            Success = true,
+            Duration = TimeSpan.FromMilliseconds(100)
+        };
+        requestTelemetry.Properties["PaymentId"] = paymentId.ToString();
+        requestTelemetry.Properties["Amount"] = amount.ToString("F2");
+        requestTelemetry.Properties["CorrelationId"] = correlationId;
+        requestTelemetry.Properties["Operation"] = "CreatePayment";
+        _telemetryClient.TrackRequest(requestTelemetry);
+        
         _logger.LogInformation("Payment request tracked - PaymentId: {PaymentId}, Amount: {Amount}, CorrelationId: {CorrelationId}", 
             paymentId, amount, correlationId);
     }
@@ -64,6 +79,21 @@ public class TelemetryService : ITelemetryService
         };
 
         _telemetryClient.TrackEvent("PaymentSuccess", properties, metrics);
+        
+        // Adiciona Dependency Telemetry para aparecer na Pesquisa de Transação
+        var dependencyTelemetry = new DependencyTelemetry
+        {
+            Name = "PaymentProcessing",
+            Data = $"ProcessPayment_{paymentId}",
+            Type = "Payment",
+            Success = true,
+            Duration = duration
+        };
+        dependencyTelemetry.Properties["PaymentId"] = paymentId.ToString();
+        dependencyTelemetry.Properties["Amount"] = amount.ToString("F2");
+        dependencyTelemetry.Properties["CorrelationId"] = correlationId;
+        dependencyTelemetry.Properties["Operation"] = "ProcessPayment";
+        _telemetryClient.TrackDependency(dependencyTelemetry);
         
         _logger.LogInformation("Payment success tracked - PaymentId: {PaymentId}, Amount: {Amount}, Duration: {Duration}ms, CorrelationId: {CorrelationId}", 
             paymentId, amount, duration.TotalMilliseconds, correlationId);
