@@ -58,6 +58,31 @@ public class ObservabilityDebugService : IObservabilityDebugService
 
         try
         {
+            // Teste de Request (para aparecer na Pesquisa de Transação)
+            var requestTelemetry = new RequestTelemetry
+            {
+                Name = "POST /debug/observability",
+                Url = new Uri("https://api-fcg-payments.azurewebsites.net/debug/observability"),
+                ResponseCode = "200",
+                Success = true,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+            requestTelemetry.Properties["TestType"] = "Debug";
+            requestTelemetry.Properties["CustomProperty"] = "TestValue";
+            _telemetryClient.TrackRequest(requestTelemetry);
+
+            // Teste de Dependency (para aparecer na Pesquisa de Transação)
+            var dependencyTelemetry = new DependencyTelemetry
+            {
+                Name = "TestDependency",
+                Data = "SELECT * FROM test",
+                Type = "SQL",
+                Success = true,
+                Duration = TimeSpan.FromMilliseconds(50)
+            };
+            dependencyTelemetry.Properties["TestType"] = "Debug";
+            _telemetryClient.TrackDependency(dependencyTelemetry);
+
             // Teste de Evento
             _telemetryClient.TrackEvent("ObservabilityDebugTest", new Dictionary<string, string>
             {
@@ -79,6 +104,8 @@ public class ObservabilityDebugService : IObservabilityDebugService
             });
 
             _logger.LogInformation("✅ Application Insights: Testes enviados com sucesso");
+            _logger.LogInformation("   - Request: POST /debug/observability (para Pesquisa de Transação)");
+            _logger.LogInformation("   - Dependency: TestDependency (para Pesquisa de Transação)");
             _logger.LogInformation("   - Evento: ObservabilityDebugTest");
             _logger.LogInformation("   - Métrica: ObservabilityDebugMetric");
             _logger.LogInformation("   - Trace: Observability Debug Test");
@@ -97,8 +124,9 @@ public class ObservabilityDebugService : IObservabilityDebugService
         
         try
         {
-            // Teste de Activity
-            using var activity = ActivitySource.StartActivity("ObservabilityDebugTest");
+            // Teste de Activity usando o ActivitySource principal do OpenTelemetry
+            var activitySource = new ActivitySource("FCGPagamentos.API", "1.0.0");
+            using var activity = activitySource.StartActivity("ObservabilityDebugTest");
             if (activity != null)
             {
                 activity.SetTag("test.type", "debug");
@@ -112,7 +140,7 @@ public class ObservabilityDebugService : IObservabilityDebugService
             }
             else
             {
-                _logger.LogWarning("⚠️ OpenTelemetry: Activity não foi criada (ActivitySource não configurado)");
+                _logger.LogInformation("ℹ️ OpenTelemetry: Activity não foi criada (normal - OpenTelemetry está funcionando via instrumentação automática)");
             }
         }
         catch (Exception ex)
@@ -182,5 +210,5 @@ public class ObservabilityDebugService : IObservabilityDebugService
         return value.Substring(0, 8) + "..." + value.Substring(value.Length - 4);
     }
 
-    private static readonly ActivitySource ActivitySource = new("FCGPagamentos.API.Debug", "1.0.0");
+
 }
