@@ -14,7 +14,7 @@ public static class PaymentEndpoints
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/payments", async (CreatePaymentCommand cmd, CreatePaymentHandler h, IValidator<CreatePaymentCommand> v, 
-            BusinessMetricsService metrics, IStructuredLoggingService logging, HttpContext context, CancellationToken ct) =>
+            BusinessMetricsService metrics, IStructuredLoggingService logging, ITelemetryService telemetry, HttpContext context, CancellationToken ct) =>
         {
             var stopwatch = Stopwatch.StartNew();
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
@@ -23,6 +23,9 @@ public static class PaymentEndpoints
             {
                 // Log da requisição
                 logging.LogPaymentRequest(cmd.Id, cmd.Amount, correlationId);
+                
+                // Telemetria da requisição
+                telemetry.TrackPaymentRequest(cmd.Id, cmd.Amount, correlationId);
                 
                 // Métrica de requisição
                 metrics.RecordPaymentRequest();
@@ -33,6 +36,7 @@ public static class PaymentEndpoints
                 {
                     metrics.RecordPaymentFailure();
                     logging.LogPaymentFailure(cmd.Id, cmd.Amount, "Validation failed", correlationId);
+                    telemetry.TrackPaymentFailure(cmd.Id, cmd.Amount, "Validation failed", correlationId);
                     return Results.ValidationProblem(vr.ToDictionary());
                 }
                 
@@ -42,12 +46,15 @@ public static class PaymentEndpoints
                 // Log de sucesso
                 logging.LogPaymentSuccess(dto.Id, dto.Amount, correlationId);
                 
+                // Tempo de processamento
+                stopwatch.Stop();
+                
+                // Telemetria de sucesso
+                telemetry.TrackPaymentSuccess(dto.Id, dto.Amount, correlationId, stopwatch.Elapsed);
+                
                 // Métricas de sucesso
                 metrics.RecordPaymentSuccess();
                 metrics.RecordPaymentAmount(dto.Amount);
-                
-                // Tempo de processamento
-                stopwatch.Stop();
                 metrics.RecordPaymentProcessingTime(stopwatch.Elapsed.TotalSeconds);
                 
                 // Retornar 202 para indicar processamento assíncrono
@@ -58,6 +65,13 @@ public static class PaymentEndpoints
                 stopwatch.Stop();
                 metrics.RecordPaymentFailure();
                 logging.LogPaymentFailure(cmd.Id, cmd.Amount, ex.Message, correlationId);
+                telemetry.TrackPaymentFailure(cmd.Id, cmd.Amount, ex.Message, correlationId);
+                telemetry.TrackException(ex, new Dictionary<string, string>
+                {
+                    ["PaymentId"] = cmd.Id.ToString(),
+                    ["CorrelationId"] = correlationId,
+                    ["Operation"] = "CreatePayment"
+                });
                 throw;
             }
         })

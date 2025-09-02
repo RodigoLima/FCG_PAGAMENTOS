@@ -66,6 +66,8 @@ public static class CompositionRoot
             return new BusinessMetricsService(meter);
         });
         s.AddScoped<IStructuredLoggingService, StructuredLoggingService>();
+        s.AddScoped<ITelemetryService, TelemetryService>();
+        s.AddScoped<IObservabilityDebugService, ObservabilityDebugService>();
         
         // Health checks customizados
         s.AddScoped<DatabaseHealthCheck>();
@@ -95,52 +97,21 @@ public static class CompositionRoot
         return s;
     }
 
-    public static IServiceCollection AddObservability(this IServiceCollection s, IConfiguration cfg)
-    {
-        var isDevelopment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
-        var enableConsoleExporter = cfg.GetValue<bool>("OpenTelemetry:EnableConsoleExporter", false);
-        var samplingRatio = cfg.GetValue<double>("OpenTelemetry:Tracing:SamplingRatio", 1.0);
-
-        // Configuração do OpenTelemetry
-        s.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0"))
-            .WithTracing(tracing =>
-            {
-                tracing.AddAspNetCoreInstrumentation(options =>
-                {
-                    // Configuração de sampling para reduzir volume de traces
-                    options.RecordException = true;
-                })
-                .AddHttpClientInstrumentation(options =>
-                {
-                    options.RecordException = true;
-                });
-
-                // Console exporter apenas quando explicitamente habilitado
-                if (enableConsoleExporter)
-                {
-                    tracing.AddConsoleExporter();
-                }
-            })
-            .WithMetrics(metrics => metrics
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation());
-
-        return s;
-    }
+    // Método removido - configuração movida para ObservabilityService
 
     public static IHostBuilder AddSerilog(this IHostBuilder builder)
     {
-        Log.Logger = new LoggerConfiguration()
-            .WriteTo.Console()
-            .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day)
-            .Enrich.FromLogContext()
-            .Enrich.WithProperty("Application", "FCGPagamentos.API")
-            .CreateLogger();
+        return builder.UseSerilog((context, configuration) =>
+        {
+            configuration
+                .ReadFrom.Configuration(context.Configuration)
+                .Enrich.FromLogContext()
+                .Enrich.WithProperty("Application", "FCGPagamentos.API")
+                .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+                .WriteTo.Console()
+                .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day);
 
-        builder.UseSerilog();
-
-        return builder;
+            Console.WriteLine("✅ Serilog configurado - logs serão enviados via ILogger para Application Insights");
+        });
     }
 }
