@@ -6,6 +6,8 @@ public class CorrelationIdMiddleware
 {
     private readonly RequestDelegate _next;
     private const string CorrelationIdHeader = "X-Correlation-ID";
+    private const string TraceParentHeader = "traceparent";
+    private const string TraceStateHeader = "tracestate";
 
     public CorrelationIdMiddleware(RequestDelegate next)
     {
@@ -28,6 +30,17 @@ public class CorrelationIdMiddleware
             Activity.Current.SetTag("correlation.id", correlationId);
             Activity.Current.SetTag("service.name", "FCGPagamentos.API");
             Activity.Current.SetTag("service.version", "1.0.0");
+            
+            // Adiciona informações do traceparent se disponível
+            if (context.Request.Headers.TryGetValue(TraceParentHeader, out var traceParent))
+            {
+                Activity.Current.SetTag("traceparent", traceParent.ToString());
+            }
+            
+            if (context.Request.Headers.TryGetValue(TraceStateHeader, out var traceState))
+            {
+                Activity.Current.SetTag("tracestate", traceState.ToString());
+            }
         }
         
         await _next(context);

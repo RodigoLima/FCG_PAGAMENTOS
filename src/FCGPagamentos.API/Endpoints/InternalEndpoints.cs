@@ -122,6 +122,35 @@ public static class InternalEndpoints
             }
         })
         .ExcludeFromDescription(); // não expor no Swagger
+
+        // Endpoint para testar o traceparent
+        app.MapGet("/internal/trace-test", (HttpContext context) =>
+        {
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+            var activity = Activity.Current;
+            
+            var traceInfo = new
+            {
+                CorrelationId = correlationId,
+                ActivityId = activity?.Id,
+                ActivityTraceId = activity?.TraceId,
+                ActivitySpanId = activity?.SpanId,
+                ActivityParentId = activity?.ParentId,
+                ActivityRootId = activity?.RootId,
+                TraceParent = context.Request.Headers["traceparent"].ToString(),
+                TraceState = context.Request.Headers["tracestate"].ToString(),
+                ResponseTraceParent = context.Response.Headers["traceparent"].ToString(),
+                ResponseTraceState = context.Response.Headers["tracestate"].ToString(),
+                AllRequestHeaders = context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString()),
+                Timestamp = DateTime.UtcNow
+            };
+            
+            return Results.Ok(traceInfo);
+        })
+        .WithName("TraceTest")
+        .WithSummary("Endpoint para testar o traceparent e W3C Trace Context")
+        .ExcludeFromDescription(); // não expor no Swagger
+        
         return app;
     }
 }

@@ -1,6 +1,7 @@
 using FCGPagamentos.API.DI;
 using FCGPagamentos.API.Endpoints;
 using FCGPagamentos.API.Middleware;
+using System.Diagnostics;
 
 var b = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,11 @@ b.Host.AddSerilog();
 var appInsightsConnectionString = b.Configuration.GetConnectionString("ApplicationInsights");
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
+    // Configuração para habilitar o protocolo W3C Trace Context (traceparent)
+    // Define o formato de ID hierárquico para suporte ao W3C Trace Context
+    Activity.DefaultIdFormat = ActivityIdFormat.Hierarchical;
+    Activity.ForceDefaultIdFormat = true;
+    
     b.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
