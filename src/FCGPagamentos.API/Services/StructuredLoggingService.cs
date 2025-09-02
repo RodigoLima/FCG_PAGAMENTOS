@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.ApplicationInsights;
-using Microsoft.ApplicationInsights.DataContracts;
 using System.Diagnostics;
 
 namespace FCGPagamentos.API.Services;
@@ -26,122 +25,84 @@ public class PaymentObservabilityService : IPaymentObservabilityService
 
     public void TrackPaymentRequest(Guid paymentId, decimal amount, string correlationId)
     {
-        // Log estruturado
-        _logger.LogInformation(
-            "Payment request received - PaymentId: {PaymentId}, Amount: {Amount}, CorrelationId: {CorrelationId}",
+        _logger.LogInformation("Payment request - PaymentId: {PaymentId}, Amount: {Amount}, CorrelationId: {CorrelationId}",
             paymentId, amount, correlationId);
 
-        // Telemetria para Application Insights
-        var properties = new Dictionary<string, string>
-        {
-            ["PaymentId"] = paymentId.ToString(),
-            ["Amount"] = amount.ToString("F2"),
-            ["CorrelationId"] = correlationId,
-            ["EventType"] = "PaymentRequest"
-        };
-
-        var metrics = new Dictionary<string, double>
-        {
-            ["Amount"] = (double)amount
-        };
-
-        _telemetryClient.TrackEvent("PaymentRequest", properties, metrics);
-        
-        // Request Telemetry para aparecer na Pesquisa de Transação
-        var requestTelemetry = new RequestTelemetry
-        {
-            Name = $"POST /payments/{paymentId}",
-            Url = new Uri($"https://api-fcg-payments.azurewebsites.net/payments/{paymentId}"),
-            ResponseCode = "202",
-            Success = true,
-            Duration = TimeSpan.FromMilliseconds(100)
-        };
-        requestTelemetry.Properties["PaymentId"] = paymentId.ToString();
-        requestTelemetry.Properties["Amount"] = amount.ToString("F2");
-        requestTelemetry.Properties["CorrelationId"] = correlationId;
-        requestTelemetry.Properties["Operation"] = "CreatePayment";
-        _telemetryClient.TrackRequest(requestTelemetry);
+        SetActivityTags("PaymentRequest", paymentId, correlationId, amount);
+        _telemetryClient.TrackEvent("PaymentRequest", CreateProperties(paymentId, correlationId, amount));
     }
 
     public void TrackPaymentSuccess(Guid paymentId, decimal amount, string correlationId, TimeSpan duration)
     {
-        // Log estruturado
-        _logger.LogInformation(
-            "Payment processed successfully - PaymentId: {PaymentId}, Amount: {Amount}, CorrelationId: {CorrelationId}",
-            paymentId, amount, correlationId);
+        _logger.LogInformation("Payment success - PaymentId: {PaymentId}, Amount: {Amount}, CorrelationId: {CorrelationId}, Duration: {Duration}ms",
+            paymentId, amount, correlationId, duration.TotalMilliseconds);
 
-        // Telemetria para Application Insights
-        var properties = new Dictionary<string, string>
-        {
-            ["PaymentId"] = paymentId.ToString(),
-            ["Amount"] = amount.ToString("F2"),
-            ["CorrelationId"] = correlationId,
-            ["EventType"] = "PaymentSuccess"
-        };
-
-        var metrics = new Dictionary<string, double>
-        {
-            ["Amount"] = (double)amount,
-            ["ProcessingTimeMs"] = duration.TotalMilliseconds
-        };
-
-        _telemetryClient.TrackEvent("PaymentSuccess", properties, metrics);
-        
-        // Dependency Telemetry para aparecer na Pesquisa de Transação
-        var dependencyTelemetry = new DependencyTelemetry
-        {
-            Name = "PaymentProcessing",
-            Data = $"ProcessPayment_{paymentId}",
-            Type = "Payment",
-            Success = true,
-            Duration = duration
-        };
-        dependencyTelemetry.Properties["PaymentId"] = paymentId.ToString();
-        dependencyTelemetry.Properties["Amount"] = amount.ToString("F2");
-        dependencyTelemetry.Properties["CorrelationId"] = correlationId;
-        dependencyTelemetry.Properties["Operation"] = "ProcessPayment";
-        _telemetryClient.TrackDependency(dependencyTelemetry);
+        SetActivityTags("PaymentSuccess", paymentId, correlationId, amount, duration.TotalMilliseconds);
+        _telemetryClient.TrackEvent("PaymentSuccess", CreateProperties(paymentId, correlationId, amount, duration.TotalMilliseconds));
     }
 
     public void TrackPaymentFailure(Guid paymentId, decimal amount, string error, string correlationId)
     {
-        // Log estruturado
-        _logger.LogError(
-            "Payment processing failed - PaymentId: {PaymentId}, Amount: {Amount}, Error: {Error}, CorrelationId: {CorrelationId}",
+        _logger.LogError("Payment failure - PaymentId: {PaymentId}, Amount: {Amount}, Error: {Error}, CorrelationId: {CorrelationId}",
             paymentId, amount, error, correlationId);
 
-        // Telemetria para Application Insights
-        var properties = new Dictionary<string, string>
-        {
-            ["PaymentId"] = paymentId.ToString(),
-            ["Amount"] = amount.ToString("F2"),
-            ["Error"] = error,
-            ["CorrelationId"] = correlationId,
-            ["EventType"] = "PaymentFailure"
-        };
-
-        var metrics = new Dictionary<string, double>
-        {
-            ["Amount"] = (double)amount
-        };
-
-        _telemetryClient.TrackEvent("PaymentFailure", properties, metrics);
+        SetActivityTags("PaymentFailure", paymentId, correlationId, amount, error: error);
+        _telemetryClient.TrackEvent("PaymentFailure", CreateProperties(paymentId, correlationId, amount, error: error));
     }
 
     public void TrackException(Exception exception, Dictionary<string, string>? properties = null)
     {
-        var exceptionTelemetry = new ExceptionTelemetry(exception);
+        _logger.LogError(exception, "Exception tracked - Properties: {@Properties}", properties);
         
+        using var activity = Activity.Current?.Source.StartActivity("Exception");
+        activity?.SetTag("exception.type", exception.GetType().Name);
+        activity?.SetTag("exception.message", exception.Message);
+        activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
+
         if (properties != null)
         {
             foreach (var prop in properties)
             {
-                exceptionTelemetry.Properties[prop.Key] = prop.Value;
+                activity?.SetTag(prop.Key.ToLowerInvariant().Replace(".", "_"), prop.Value);
             }
         }
 
-        _telemetryClient.TrackException(exceptionTelemetry);
+        _telemetryClient.TrackException(exception);
+    }
+
+    private void SetActivityTags(string operation, Guid paymentId, string correlationId, decimal amount, double? durationMs = null, string? error = null)
+    {
+        using var activity = Activity.Current?.Source.StartActivity(operation);
+        activity?.SetTag("payment.id", paymentId.ToString());
+        activity?.SetTag("correlation.id", correlationId);
+        activity?.SetTag("payment.amount", amount.ToString("F2"));
+        activity?.SetTag("service.name", "FCGPagamentos.API");
         
-        _logger.LogError(exception, "Exception tracked - Properties: {@Properties}", properties);
+        if (durationMs.HasValue)
+            activity?.SetTag("duration.ms", durationMs.Value.ToString());
+        
+        if (error != null)
+        {
+            activity?.SetTag("error.message", error);
+            activity?.SetStatus(ActivityStatusCode.Error, error);
+        }
+    }
+
+    private Dictionary<string, string> CreateProperties(Guid paymentId, string correlationId, decimal amount, double? durationMs = null, string? error = null)
+    {
+        var properties = new Dictionary<string, string>
+        {
+            ["PaymentId"] = paymentId.ToString(),
+            ["Amount"] = amount.ToString("F2"),
+            ["CorrelationId"] = correlationId
+        };
+
+        if (durationMs.HasValue)
+            properties["DurationMs"] = durationMs.Value.ToString();
+        
+        if (error != null)
+            properties["Error"] = error;
+
+        return properties;
     }
 }

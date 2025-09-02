@@ -18,29 +18,14 @@ public class CorrelationIdMiddleware
     {
         var correlationId = GetOrGenerateCorrelationId(context);
         
-        // Adiciona ao contexto para uso nos endpoints
         context.Items["CorrelationId"] = correlationId;
-        
-        // Adiciona ao header de resposta
         context.Response.Headers[CorrelationIdHeader] = correlationId;
         
-        // Configura o Activity para OpenTelemetry/Application Insights
+        // Configura tags básicas para observabilidade
         if (Activity.Current != null)
         {
             Activity.Current.SetTag("correlation.id", correlationId);
             Activity.Current.SetTag("service.name", "FCGPagamentos.API");
-            Activity.Current.SetTag("service.version", "1.0.0");
-            
-            // Adiciona informações do traceparent se disponível
-            if (context.Request.Headers.TryGetValue(TraceParentHeader, out var traceParent))
-            {
-                Activity.Current.SetTag("traceparent", traceParent.ToString());
-            }
-            
-            if (context.Request.Headers.TryGetValue(TraceStateHeader, out var traceState))
-            {
-                Activity.Current.SetTag("tracestate", traceState.ToString());
-            }
         }
         
         await _next(context);
