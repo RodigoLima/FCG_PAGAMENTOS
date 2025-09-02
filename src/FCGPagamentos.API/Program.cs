@@ -15,7 +15,7 @@ Activity.DefaultIdFormat = ActivityIdFormat.Hierarchical;
 Activity.ForceDefaultIdFormat = true;
 
 // Configuração do Application Insights (deve vir antes de outros serviços)
-var appInsightsConnectionString = b.Configuration.GetConnectionString("ApplicationInsights");
+var appInsightsConnectionString = b.Configuration["ApplicationInsights:ConnectionString"];
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
     b.Services.AddApplicationInsightsTelemetry(options =>
@@ -25,7 +25,11 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
         options.EnableQuickPulseMetricStream = true;
     });
 }
-
+else
+{
+    // Fallback: habilitar AI mesmo sem connection string explícita
+    b.Services.AddApplicationInsightsTelemetry();
+}
 // Serviços da aplicação
 b.Services.AddAppServices(b.Configuration);
 
