@@ -5,17 +5,20 @@ namespace FCGPagamentos.Domain.Events;
 public class PaymentQueued : Event
 {
     public Guid PaymentId { get; private set; }
-    public string OrderId { get; private set; } = string.Empty;
+    public string UserId { get; private set; } = string.Empty;
+    public string GameId { get; private set; } = string.Empty;
     public string CorrelationId { get; private set; } = string.Empty;
 
     public PaymentQueued(
         Guid paymentId, 
-        string orderId, 
+        string userId, 
+        string gameId,
         string correlationId,
         long version) : base(paymentId.ToString(), version)
     {
         PaymentId = paymentId;
-        OrderId = orderId;
+        UserId = userId;
+        GameId = gameId;
         CorrelationId = correlationId;
     }
 

@@ -12,7 +12,8 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
         b.ToTable("payments");
         b.HasKey(x => x.Id);
 
-        b.Property(x => x.OrderId).IsRequired().HasMaxLength(100);
+        b.Property(x => x.UserId).IsRequired().HasMaxLength(100);
+        b.Property(x => x.GameId).IsRequired().HasMaxLength(100);
         b.Property(x => x.CorrelationId).IsRequired().HasMaxLength(100);
         b.Property(x => x.Method).HasConversion<int>().IsRequired();
 
@@ -40,7 +41,8 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
         b.Property(x => x.CreatedAt).HasColumnName("created_at");
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
 
-        b.HasIndex(x => x.OrderId);
+        b.HasIndex(x => x.UserId);
+        b.HasIndex(x => x.GameId);
         b.HasIndex(x => x.CorrelationId);
     }
 }

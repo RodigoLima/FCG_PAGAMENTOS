@@ -5,8 +5,11 @@ namespace FCGPagamentos.API.Models;
 
 public class CreatePaymentRequest
 {
-    [Required(ErrorMessage = "OrderId é obrigatório")]
-    public string OrderId { get; set; } = string.Empty;
+    [Required(ErrorMessage = "UserId é obrigatório")]
+    public string UserId { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "GameId é obrigatório")]
+    public string GameId { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Amount é obrigatório")]
     [Range(0.01, double.MaxValue, ErrorMessage = "Amount deve ser maior que zero")]
