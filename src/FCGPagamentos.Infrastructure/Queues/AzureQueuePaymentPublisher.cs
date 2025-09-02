@@ -4,7 +4,7 @@ using FCGPagamentos.Application.DTOs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using System.Diagnostics;
+
 
 namespace FCGPagamentos.Infrastructure.Queues;
 
