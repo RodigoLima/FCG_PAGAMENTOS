@@ -1,44 +1,27 @@
 using FCGPagamentos.API.DI;
 using FCGPagamentos.API.Endpoints;
 using FCGPagamentos.API.Middleware;
+using FCGPagamentos.API.Services;
 using System.Diagnostics;
 
-var b = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-// Configuração do Serilog
-b.Host.AddSerilog();
-
-// Configuração para habilitar o protocolo W3C Trace Context (traceparent)
-// Define o formato de ID hierárquico para suporte ao W3C Trace Context
-// IMPORTANTE: Deve ser configurado ANTES de qualquer instrumentação
+// Configuração do protocolo W3C Trace Context (deve vir ANTES de qualquer instrumentação)
 Activity.DefaultIdFormat = ActivityIdFormat.Hierarchical;
 Activity.ForceDefaultIdFormat = true;
 
-// Configuração do Application Insights (deve vir antes de outros serviços)
-var appInsightsConnectionString = b.Configuration["ApplicationInsights:ConnectionString"];
-if (!string.IsNullOrEmpty(appInsightsConnectionString))
-{
-    b.Services.AddApplicationInsightsTelemetry(options =>
-    {
-        options.ConnectionString = appInsightsConnectionString;
-        options.EnableAdaptiveSampling = true;
-        options.EnableQuickPulseMetricStream = true;
-    });
-}
-else
-{
-    // Fallback: habilitar AI mesmo sem connection string explícita
-    b.Services.AddApplicationInsightsTelemetry();
-}
-// Serviços da aplicação
-b.Services.AddAppServices(b.Configuration);
+// Configuração do Serilog
+builder.Host.AddSerilog();
 
-// Configuração da observabilidade
-b.Services.AddObservability(b.Configuration);
+// Configuração centralizada de observabilidade
+builder.Services.AddObservability(builder.Configuration);
+
+// Serviços da aplicação
+builder.Services.AddAppServices(builder.Configuration);
 
 // Adiciona Swagger
-b.Services.AddEndpointsApiExplorer();
-b.Services.AddSwaggerGen(c =>
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
@@ -48,15 +31,15 @@ b.Services.AddSwaggerGen(c =>
     });
 });
 
-var app = b.Build();
+var app = builder.Build();
 
-// Log de inicialização
-Console.WriteLine("Aplicação iniciando...");
-Console.WriteLine($"Environment: {app.Environment.EnvironmentName}");
-if (!string.IsNullOrEmpty(appInsightsConnectionString))
-{
-    Console.WriteLine("Application Insights configurado");
-}
+// Log de inicialização e debug de observabilidade
+Console.WriteLine("🚀 Aplicação iniciando...");
+Console.WriteLine($"🌍 Environment: {app.Environment.EnvironmentName}");
+
+// Debug de observabilidade
+var debugService = app.Services.GetRequiredService<IObservabilityDebugService>();
+debugService.LogDebugInfo();
 
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
@@ -80,6 +63,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"))
 // Seus endpoints customizados
 app.MapPaymentEndpoints();
 app.MapMetricsEndpoints();
-app.MapInternal(); 
+app.MapInternal();
+app.MapDebugEndpoints(); 
 Console.WriteLine("Aplicação configurada. Iniciando servidor...");
 app.Run();
