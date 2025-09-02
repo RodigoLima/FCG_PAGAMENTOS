@@ -3,6 +3,7 @@ using System.Text.Json;
 using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Application.Abstractions;
 using FCGPagamentos.API.Services;
+using FCGPagamentos.Domain.Entities;
 using System.Diagnostics;
 
 namespace FCGPagamentos.API.Endpoints;
