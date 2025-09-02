@@ -12,8 +12,9 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
         b.ToTable("payments");
         b.HasKey(x => x.Id);
 
-        b.Property(x => x.UserId).IsRequired();
-        b.Property(x => x.GameId).IsRequired();
+        b.Property(x => x.OrderId).IsRequired().HasMaxLength(100);
+        b.Property(x => x.CorrelationId).IsRequired().HasMaxLength(100);
+        b.Property(x => x.Method).HasConversion<int>().IsRequired();
 
         // Mapeamento do ValueObject Money
         b.OwnsOne(x => x.Value, mv =>
@@ -31,7 +32,7 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
 
         b.Property(x => x.Status)
             .HasConversion<int>()
-            .HasDefaultValue(PaymentStatus.Requested);
+            .HasDefaultValue(PaymentStatus.Pending);
 
         b.Property(x => x.ProcessedAt).HasColumnName("processed_at");
 
@@ -39,7 +40,7 @@ public class PaymentMap : IEntityTypeConfiguration<Payment>
         b.Property(x => x.CreatedAt).HasColumnName("created_at");
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
 
-        b.HasIndex(x => x.UserId);
-        b.HasIndex(x => x.GameId);
+        b.HasIndex(x => x.OrderId);
+        b.HasIndex(x => x.CorrelationId);
     }
 }

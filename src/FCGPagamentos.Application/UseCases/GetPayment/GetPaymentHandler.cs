@@ -11,6 +11,6 @@ public class GetPaymentHandler
     {
         var p = await _repo.GetAsync(q.Id, ct);
         if (p is null) return null;
-        return new PaymentDto(p.Id, p.UserId, p.GameId, p.Value.Amount, p.Value.Currency, p.Status, p.CreatedAt, p.ProcessedAt);
+        return new PaymentDto(p.Id, p.OrderId, p.Value.Amount, p.Value.Currency, p.Method, p.Status, p.CreatedAt, p.UpdatedAt, p.ProcessedAt);
     }
 }

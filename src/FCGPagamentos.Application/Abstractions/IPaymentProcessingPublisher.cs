@@ -2,8 +2,7 @@
 
 public interface IPaymentProcessingPublisher
 {
-    Task PublishRequestedAsync(
-        Guid paymentId, Guid userId, Guid gameId,
-        decimal amount, string currency,
+    Task PublishPaymentForProcessingAsync(
+        Guid paymentId,
         CancellationToken ct);
 }

@@ -15,12 +15,14 @@ public class AppDbContext : DbContext
 
     // DbSets -> representam suas tabelas
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
     public DbSet<EventStore> Events => Set<EventStore>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Aplica mapeamentos via Fluent API
         modelBuilder.ApplyConfiguration(new Mappings.PaymentMap());
+        modelBuilder.ApplyConfiguration(new Mappings.PaymentEventMap());
         modelBuilder.ApplyConfiguration(new Mappings.EventStoreMap());
         
         // Configuração para ignorar propriedades de Event Sourcing durante a migration

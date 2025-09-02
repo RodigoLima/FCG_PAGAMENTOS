@@ -7,10 +7,11 @@ namespace FCGPagamentos.Domain.Entities;
 public class Payment: BaseModel, IAggregateRoot
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
-    public Guid UserId { get; private set; }
-    public Guid GameId { get; private set; }
+    public string OrderId { get; private set; } = string.Empty;
+    public string CorrelationId { get; private set; } = string.Empty;
     public Money Value { get; set; } = default!;
-    public PaymentStatus Status { get; private set; } = PaymentStatus.Requested;
+    public PaymentMethod Method { get; private set; }
+    public PaymentStatus Status { get; private set; } = PaymentStatus.Pending;
     public DateTime? ProcessedAt { get; private set; }
 
     // Event Sourcing
@@ -21,35 +22,58 @@ public class Payment: BaseModel, IAggregateRoot
 
     private Payment() { } // EF
 
-    public Payment(Guid userId, Guid gameId, Money value, DateTime now)
+    public Payment(string orderId, string correlationId, Money value, PaymentMethod method, DateTime now)
     {
         if (value.Amount <= 0) throw new ArgumentOutOfRangeException(nameof(value));
+        if (string.IsNullOrWhiteSpace(orderId)) throw new ArgumentException("OrderId cannot be null or empty", nameof(orderId));
+        if (string.IsNullOrWhiteSpace(correlationId)) throw new ArgumentException("CorrelationId cannot be null or empty", nameof(correlationId));
         
-        UserId = userId; 
-        GameId = gameId; 
+        OrderId = orderId; 
+        CorrelationId = correlationId;
         Value = value; 
+        Method = method;
         CreatedAt = now;
+        UpdatedAt = now;
         Version = 1;
 
-        // Adiciona evento de criação
-        AddEvent(new PaymentRequested(Id, userId, gameId, value.Amount, value.Currency, 
-            $"Pagamento para jogo {gameId}", "CreditCard", Version));
+        // Adiciona eventos de criação e enfileiramento
+        AddEvent(new PaymentCreated(Id, orderId, correlationId, value.Amount, value.Currency, method.ToString(), Version));
+        AddEvent(new PaymentQueued(Id, orderId, correlationId, Version + 1));
     }
 
-    public void MarkProcessed(DateTime now) 
+    public void MarkProcessing(DateTime now) 
     { 
-        Status = PaymentStatus.Processed; 
-        ProcessedAt = now; 
+        Status = PaymentStatus.Processing; 
+        UpdatedAt = now;
         Version++;
-        AddEvent(new PaymentCompleted(Id, Guid.NewGuid().ToString(), Version));
+        AddEvent(new PaymentProcessing(Id, CorrelationId, now, Version));
+    }
+
+    public void MarkApproved(DateTime now) 
+    { 
+        Status = PaymentStatus.Approved; 
+        ProcessedAt = now; 
+        UpdatedAt = now;
+        Version++;
+        AddEvent(new PaymentApproved(Id, CorrelationId, now, Version));
+    }
+
+    public void MarkDeclined(DateTime now, string? reason = null) 
+    { 
+        Status = PaymentStatus.Declined; 
+        ProcessedAt = now; 
+        UpdatedAt = now;
+        Version++;
+        AddEvent(new PaymentDeclined(Id, CorrelationId, now, reason, Version));
     }
 
     public void MarkFailed(DateTime now, string? reason = null) 
     { 
         Status = PaymentStatus.Failed; 
         ProcessedAt = now; 
+        UpdatedAt = now;
         Version++;
-        AddEvent(new PaymentFailed(Id, now, reason, Version));
+        AddEvent(new PaymentFailed(Id, CorrelationId, now, reason, Version));
     }
 
     private void AddEvent(Event @event)
@@ -75,12 +99,22 @@ public class Payment: BaseModel, IAggregateRoot
     {
         switch (@event)
         {
-            case PaymentRequested e:
-                // Estado já está correto, só atualizar versão
+            case PaymentCreated e:
+                Status = PaymentStatus.Pending;
                 break;
-            case PaymentCompleted e:
-                Status = PaymentStatus.Processed;
-                ProcessedAt = e.CompletedAt;
+            case PaymentQueued e:
+                Status = PaymentStatus.Pending;
+                break;
+            case PaymentProcessing e:
+                Status = PaymentStatus.Processing;
+                break;
+            case PaymentApproved e:
+                Status = PaymentStatus.Approved;
+                ProcessedAt = e.ApprovedAt;
+                break;
+            case PaymentDeclined e:
+                Status = PaymentStatus.Declined;
+                ProcessedAt = e.DeclinedAt;
                 break;
             case PaymentFailed e:
                 Status = PaymentStatus.Failed;

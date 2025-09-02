@@ -1,6 +1,7 @@
 ﻿using FCGPagamentos.Application.UseCases.CreatePayment;
 using FCGPagamentos.Application.UseCases.GetPayment;
 using FCGPagamentos.API.Services;
+using FCGPagamentos.API.Models;
 using FCGPagamentos.Application.Abstractions;
 using FCGPagamentos.Domain.Events;
 using FCGPagamentos.Infrastructure.Persistence;
@@ -13,18 +14,20 @@ public static class PaymentEndpoints
 {
     public static IEndpointRouteBuilder MapPaymentEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/payments", async (CreatePaymentCommand cmd, CreatePaymentHandler h, IValidator<CreatePaymentCommand> v, 
+        app.MapPost("/payments", async (CreatePaymentRequest request, CreatePaymentHandler h, IValidator<CreatePaymentCommand> v, 
             IPaymentObservabilityService observability, HttpContext context, CancellationToken ct) =>
         {
             var stopwatch = Stopwatch.StartNew();
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+            var paymentId = Guid.NewGuid();
             
             try
             {
+                // Criar comando a partir do request
+                var cmd = new CreatePaymentCommand(paymentId, request.OrderId, correlationId, request.Amount, request.Currency, request.Method);
+                
                 // Observabilidade da requisição
                 observability.TrackPaymentRequest(cmd.Id, cmd.Amount, correlationId);
-                
-
                 
                 // Validação
                 var vr = await v.ValidateAsync(cmd, ct);
@@ -43,18 +46,16 @@ public static class PaymentEndpoints
                 // Observabilidade de sucesso
                 observability.TrackPaymentSuccess(dto.Id, dto.Amount, correlationId, stopwatch.Elapsed);
                 
-
-                
-                // Retornar 202 para indicar processamento assíncrono
-                return Results.Accepted($"/payments/{dto.Id}", dto);
+                // Retornar 201 Created conforme especificação
+                return Results.Created($"/payments/{dto.Id}", new { payment_id = dto.Id, status = "pending" });
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                observability.TrackPaymentFailure(cmd.Id, cmd.Amount, ex.Message, correlationId);
+                observability.TrackPaymentFailure(paymentId, request.Amount, ex.Message, correlationId);
                 observability.TrackException(ex, new Dictionary<string, string>
                 {
-                    ["PaymentId"] = cmd.Id.ToString(),
+                    ["PaymentId"] = paymentId.ToString(),
                     ["CorrelationId"] = correlationId,
                     ["Operation"] = "CreatePayment"
                 });
@@ -63,41 +64,47 @@ public static class PaymentEndpoints
         })
         .WithName("CreatePayment")
         .WithSummary("Cria um novo pagamento")
-        .WithDescription("Cria um novo pagamento no sistema e retorna o ID do pagamento criado")
+        .WithDescription("Registra a intenção de pagamento (não processa ainda)")
         .WithTags("Payments")
-        .Produces<FCGPagamentos.Application.DTOs.PaymentDto>(StatusCodes.Status202Accepted)
+        .Produces(StatusCodes.Status201Created)
         .ProducesValidationProblem()
         .Produces(StatusCodes.Status500InternalServerError);
 
-        app.MapGet("/payments/{id:guid}", async (Guid id, GetPaymentHandler h, 
+        app.MapGet("/payments/{payment_id:guid}", async (Guid payment_id, GetPaymentHandler h, 
             IPaymentObservabilityService observability, HttpContext context, CancellationToken ct) =>
         {
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
             
             try
             {
-                var dto = await h.Handle(new GetPaymentQuery(id), ct);
+                var dto = await h.Handle(new GetPaymentQuery(payment_id), ct);
                 
                 if (dto is null)
                 {
-                    observability.TrackPaymentFailure(id, 0, "Payment not found", correlationId);
+                    observability.TrackPaymentFailure(payment_id, 0, "Payment not found", correlationId);
                     return Results.NotFound();
                 }
                 
-                observability.TrackPaymentSuccess(id, dto.Amount, correlationId, TimeSpan.Zero);
-                return Results.Ok(dto);
+                observability.TrackPaymentSuccess(payment_id, dto.Amount, correlationId, TimeSpan.Zero);
+                
+                // Retornar formato conforme especificação
+                return Results.Ok(new { 
+                    payment_id = dto.Id, 
+                    status = dto.Status.ToString().ToLower(), 
+                    last_update_at = dto.LastUpdateAt 
+                });
             }
             catch (Exception ex)
             {
-                observability.TrackPaymentFailure(id, 0, ex.Message, correlationId);
+                observability.TrackPaymentFailure(payment_id, 0, ex.Message, correlationId);
                 throw;
             }
         })
         .WithName("GetPayment")
-        .WithSummary("Obtém um pagamento por ID")
-        .WithDescription("Recupera as informações de um pagamento específico pelo seu ID")
+        .WithSummary("Consulta status do pagamento")
+        .WithDescription("Consulta o status atual de um pagamento específico")
         .WithTags("Payments")
-        .Produces<FCGPagamentos.Application.DTOs.PaymentDto>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status500InternalServerError);
 
