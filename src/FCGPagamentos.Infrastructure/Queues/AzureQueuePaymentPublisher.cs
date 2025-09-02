@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Queues;
 using FCGPagamentos.Application.Abstractions;
+using FCGPagamentos.Application.DTOs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -23,20 +24,20 @@ public class AzureQueuePaymentPublisher : IPaymentProcessingPublisher
         _logger = logger;
     }
 
-    public async Task PublishPaymentForProcessingAsync(Guid paymentId, CancellationToken ct)
+    public async Task PublishPaymentForProcessingAsync(PaymentRequestedMessage message, CancellationToken ct)
     {
         try
         {
-            var payload = new { payment_id = paymentId };
-            var json = JsonSerializer.Serialize(payload);
+            var json = JsonSerializer.Serialize(message);
             
-            _logger.LogInformation("Publishing payment to queue - PaymentId: {PaymentId}", paymentId);
+            _logger.LogInformation("Publishing payment to queue - PaymentId: {PaymentId}, Amount: {Amount}, Currency: {Currency}", 
+                message.PaymentId, message.Amount, message.Currency);
             await _client.SendMessageAsync(json, cancellationToken: ct);
-            _logger.LogInformation("Payment published successfully - PaymentId: {PaymentId}", paymentId);
+            _logger.LogInformation("Payment published successfully - PaymentId: {PaymentId}", message.PaymentId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to publish payment - PaymentId: {PaymentId}", paymentId);
+            _logger.LogError(ex, "Failed to publish payment - PaymentId: {PaymentId}", message.PaymentId);
             throw;
         }
     }

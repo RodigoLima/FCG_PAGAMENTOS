@@ -24,7 +24,7 @@ public static class PaymentEndpoints
             try
             {
                 // Criar comando a partir do request
-                var cmd = new CreatePaymentCommand(paymentId, request.OrderId, correlationId, request.Amount, request.Currency, request.Method);
+                var cmd = new CreatePaymentCommand(paymentId, request.UserId, request.GameId, correlationId, request.Amount, request.Currency, request.Method);
                 
                 // Observabilidade da requisição
                 observability.TrackPaymentRequest(cmd.Id, cmd.Amount, correlationId);

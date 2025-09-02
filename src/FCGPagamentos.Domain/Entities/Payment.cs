@@ -7,7 +7,8 @@ namespace FCGPagamentos.Domain.Entities;
 public class Payment: BaseModel, IAggregateRoot
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
-    public string OrderId { get; private set; } = string.Empty;
+    public string UserId { get; private set; } = string.Empty;
+    public string GameId { get; private set; } = string.Empty;
     public string CorrelationId { get; private set; } = string.Empty;
     public Money Value { get; set; } = default!;
     public PaymentMethod Method { get; private set; }
@@ -22,13 +23,15 @@ public class Payment: BaseModel, IAggregateRoot
 
     private Payment() { } // EF
 
-    public Payment(string orderId, string correlationId, Money value, PaymentMethod method, DateTime now)
+    public Payment(string userId, string gameId, string correlationId, Money value, PaymentMethod method, DateTime now)
     {
         if (value.Amount <= 0) throw new ArgumentOutOfRangeException(nameof(value));
-        if (string.IsNullOrWhiteSpace(orderId)) throw new ArgumentException("OrderId cannot be null or empty", nameof(orderId));
+        if (string.IsNullOrWhiteSpace(userId)) throw new ArgumentException("UserId cannot be null or empty", nameof(userId));
+        if (string.IsNullOrWhiteSpace(gameId)) throw new ArgumentException("GameId cannot be null or empty", nameof(gameId));
         if (string.IsNullOrWhiteSpace(correlationId)) throw new ArgumentException("CorrelationId cannot be null or empty", nameof(correlationId));
         
-        OrderId = orderId; 
+        UserId = userId;
+        GameId = gameId; 
         CorrelationId = correlationId;
         Value = value; 
         Method = method;
@@ -37,8 +40,8 @@ public class Payment: BaseModel, IAggregateRoot
         Version = 1;
 
         // Adiciona eventos de criação e enfileiramento
-        AddEvent(new PaymentCreated(Id, orderId, correlationId, value.Amount, value.Currency, method.ToString(), Version));
-        AddEvent(new PaymentQueued(Id, orderId, correlationId, Version + 1));
+        AddEvent(new PaymentCreated(Id, userId, gameId, correlationId, value.Amount, value.Currency, method.ToString(), Version));
+        AddEvent(new PaymentQueued(Id, userId, gameId, correlationId, Version + 1));
     }
 
     public void MarkProcessing(DateTime now) 

@@ -1,4 +1,5 @@
 using FCGPagamentos.Application.Abstractions;
+using FCGPagamentos.Application.DTOs;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -13,20 +14,20 @@ public class MockPaymentPublisher : IPaymentProcessingPublisher
         _logger = logger;
     }
 
-    public async Task PublishPaymentForProcessingAsync(Guid paymentId, CancellationToken ct)
+    public async Task PublishPaymentForProcessingAsync(PaymentRequestedMessage message, CancellationToken ct)
     {
         try
         {
-            var payload = new { payment_id = paymentId };
-            var json = JsonSerializer.Serialize(payload);
+            var json = JsonSerializer.Serialize(message);
             
-            _logger.LogInformation("MOCK: Publishing payment - PaymentId: {PaymentId}, Payload: {Payload}", paymentId, json);
+            _logger.LogInformation("MOCK: Publishing payment - PaymentId: {PaymentId}, Amount: {Amount}, Currency: {Currency}, Payload: {Payload}", 
+                message.PaymentId, message.Amount, message.Currency, json);
             await Task.Delay(50, ct); // Simula latência de rede
-            _logger.LogInformation("MOCK: Payment published successfully - PaymentId: {PaymentId}", paymentId);
+            _logger.LogInformation("MOCK: Payment published successfully - PaymentId: {PaymentId}", message.PaymentId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "MOCK: Failed to publish payment - PaymentId: {PaymentId}", paymentId);
+            _logger.LogError(ex, "MOCK: Failed to publish payment - PaymentId: {PaymentId}", message.PaymentId);
             throw;
         }
     }
