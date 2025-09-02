@@ -16,7 +16,7 @@ public class AzureQueuePaymentPublisher : IPaymentProcessingPublisher
     {
         _client = new QueueClient(
             cfg["AzureStorage:ConnectionString"],
-            "payments-requests",
+            "payments-to-process",
             new QueueClientOptions { MessageEncoding = QueueMessageEncoding.Base64 });
 
         _client.CreateIfNotExists();
