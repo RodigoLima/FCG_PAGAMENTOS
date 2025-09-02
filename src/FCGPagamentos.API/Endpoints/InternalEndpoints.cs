@@ -129,20 +129,37 @@ public static class InternalEndpoints
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
             var activity = Activity.Current;
             
+            // Gera o traceparent no formato W3C se não existir
+            var traceparent = context.Request.Headers["traceparent"].ToString();
+            if (string.IsNullOrEmpty(traceparent) && activity != null)
+            {
+                // Formato W3C: 00-{trace-id}-{parent-id}-{trace-flags}
+                traceparent = $"00-{activity.TraceId}-{activity.SpanId}-01";
+            }
+            
             var traceInfo = new
             {
                 CorrelationId = correlationId,
                 ActivityId = activity?.Id,
-                ActivityTraceId = activity?.TraceId,
-                ActivitySpanId = activity?.SpanId,
+                ActivityTraceId = activity?.TraceId.ToString(),
+                ActivitySpanId = activity?.SpanId.ToString(),
                 ActivityParentId = activity?.ParentId,
                 ActivityRootId = activity?.RootId,
-                TraceParent = context.Request.Headers["traceparent"].ToString(),
+                ActivityFormat = activity?.IdFormat.ToString(),
+                TraceParent = traceparent,
                 TraceState = context.Request.Headers["tracestate"].ToString(),
                 ResponseTraceParent = context.Response.Headers["traceparent"].ToString(),
                 ResponseTraceState = context.Response.Headers["tracestate"].ToString(),
-                AllRequestHeaders = context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString()),
-                Timestamp = DateTime.UtcNow
+                // Headers relacionados ao tracing
+                TracingHeaders = new
+                {
+                    TraceParent = context.Request.Headers["traceparent"].ToString(),
+                    TraceState = context.Request.Headers["tracestate"].ToString(),
+                    XCorrelationId = context.Request.Headers["X-Correlation-ID"].ToString(),
+                    XRequestId = context.Request.Headers["X-Request-ID"].ToString()
+                },
+                Timestamp = DateTime.UtcNow,
+                Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown"
             };
             
             return Results.Ok(traceInfo);

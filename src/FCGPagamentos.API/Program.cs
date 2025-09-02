@@ -8,15 +8,16 @@ var b = WebApplication.CreateBuilder(args);
 // Configuração do Serilog
 b.Host.AddSerilog();
 
+// Configuração para habilitar o protocolo W3C Trace Context (traceparent)
+// Define o formato de ID hierárquico para suporte ao W3C Trace Context
+// IMPORTANTE: Deve ser configurado ANTES de qualquer instrumentação
+Activity.DefaultIdFormat = ActivityIdFormat.Hierarchical;
+Activity.ForceDefaultIdFormat = true;
+
 // Configuração do Application Insights (deve vir antes de outros serviços)
 var appInsightsConnectionString = b.Configuration.GetConnectionString("ApplicationInsights");
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
-    // Configuração para habilitar o protocolo W3C Trace Context (traceparent)
-    // Define o formato de ID hierárquico para suporte ao W3C Trace Context
-    Activity.DefaultIdFormat = ActivityIdFormat.Hierarchical;
-    Activity.ForceDefaultIdFormat = true;
-    
     b.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
