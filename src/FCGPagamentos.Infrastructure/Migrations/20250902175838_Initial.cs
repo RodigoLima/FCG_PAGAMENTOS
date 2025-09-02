@@ -18,7 +18,8 @@ namespace FCGPagamentos.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    OrderId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    UserId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    GameId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     CorrelationId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     amount = table.Column<decimal>(type: "numeric(14,2)", nullable: false),
                     currency = table.Column<string>(type: "character varying(3)", maxLength: 3, nullable: false),
@@ -78,9 +79,14 @@ namespace FCGPagamentos.Infrastructure.Migrations
                 column: "CorrelationId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_payments_OrderId",
+                name: "IX_payments_GameId",
                 table: "payments",
-                column: "OrderId");
+                column: "GameId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_payments_UserId",
+                table: "payments",
+                column: "UserId");
         }
 
         /// <inheritdoc />

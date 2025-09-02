@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FCGPagamentos.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250902162909_Initial")]
+    [Migration("20250902175838_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -41,13 +41,13 @@ namespace FCGPagamentos.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<int>("Method")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("OrderId")
+                    b.Property<string>("GameId")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamp with time zone")
@@ -62,11 +62,18 @@ namespace FCGPagamentos.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CorrelationId");
 
-                    b.HasIndex("OrderId");
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("payments", (string)null);
                 });
