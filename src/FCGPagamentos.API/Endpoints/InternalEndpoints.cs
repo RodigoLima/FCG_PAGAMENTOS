@@ -108,61 +108,6 @@ public static class InternalEndpoints
                 p => p.MarkFailed(DateTime.UtcNow, "Payment processing failed"));
         })
         .ExcludeFromDescription(); // não expor no Swagger
-
-        app.MapGet("/internal/payments/{paymentId:guid}", async (
-            Guid paymentId, AppDbContext db, HttpRequest req, IConfiguration cfg,
-            IPaymentObservabilityService observability, HttpContext context) =>
-        {
-            var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
-            {
-                // Observabilidade da requisição
-                observability.TrackPaymentRequest(paymentId, 0, correlationId);
-                
-                // Autorização simples entre serviços (segredo compartilhado)
-                var token = req.Headers["x-internal-token"].ToString();
-                if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
-                {
-                    observability.TrackPaymentFailure(paymentId, 0, "Unauthorized internal request", correlationId);
-                    return Results.Unauthorized();
-                }
-
-                var payment = await db.Payments.FirstOrDefaultAsync(x => x.Id == paymentId);
-                if (payment is null) 
-                {
-                    observability.TrackPaymentFailure(paymentId, 0, "Payment not found", correlationId);
-                    return Results.NotFound();
-                }
-
-                // Retorna informações básicas do pagamento para a function
-                var paymentInfo = new
-                {
-                    Id = payment.Id,
-                    Amount = payment.Value.Amount,
-                    Currency = payment.Value.Currency,
-                    Status = payment.Status.ToString(),
-                    Method = payment.Method.ToString(),
-                    CreatedAt = payment.CreatedAt,
-                    UpdatedAt = payment.UpdatedAt
-                };
-                
-                // Observabilidade de sucesso
-                stopwatch.Stop();
-                observability.TrackPaymentSuccess(paymentId, payment.Value.Amount, correlationId, stopwatch.Elapsed);
-                
-                return Results.Ok(paymentInfo);
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                observability.TrackPaymentFailure(paymentId, 0, ex.Message, correlationId);
-                throw;
-            }
-        })
-        .ExcludeFromDescription(); // não expor no Swagger
-
         
         return app;
     }
