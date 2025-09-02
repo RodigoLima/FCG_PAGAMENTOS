@@ -12,8 +12,7 @@ public static class ObservabilityService
 {
     public static IServiceCollection AddObservability(this IServiceCollection services, IConfiguration configuration)
     {
-        // Registra o serviço de configuração
-        services.AddSingleton<IObservabilityConfigurationService, ObservabilityConfigurationService>();
+
         
         // Configura Application Insights
         services.AddApplicationInsights(configuration);
@@ -26,13 +25,15 @@ public static class ObservabilityService
 
     private static IServiceCollection AddApplicationInsights(this IServiceCollection services, IConfiguration configuration)
     {
-        var configService = new ObservabilityConfigurationService(configuration);
+        var connectionString = configuration["ApplicationInsights:ConnectionString"] 
+            ?? configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+            ?? configuration["APPINSIGHTS_INSTRUMENTATIONKEY"];
         
-        if (configService.IsApplicationInsightsConfigured())
+        if (!string.IsNullOrEmpty(connectionString))
         {
             services.AddApplicationInsightsTelemetry(options =>
             {
-                options.ConnectionString = configService.GetApplicationInsightsConnectionString();
+                options.ConnectionString = connectionString;
                 options.EnableAdaptiveSampling = true;
                 options.EnableQuickPulseMetricStream = true;
                 options.EnableDependencyTrackingTelemetryModule = true;
@@ -40,13 +41,10 @@ public static class ObservabilityService
                 options.EnableEventCounterCollectionModule = true;
                 options.EnablePerformanceCounterCollectionModule = true;
             });
-            
-            Console.WriteLine("✅ Application Insights: CONFIGURADO com connection string");
         }
         else
         {
             services.AddApplicationInsightsTelemetry();
-            Console.WriteLine("⚠️ Application Insights: CONFIGURADO sem connection string (auto-detection)");
         }
         
         return services;
@@ -54,7 +52,6 @@ public static class ObservabilityService
 
     private static IServiceCollection AddOpenTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        var configService = new ObservabilityConfigurationService(configuration);
         
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
@@ -65,65 +62,31 @@ public static class ObservabilityService
                     ["service.instance.id"] = Environment.MachineName,
                     ["service.version"] = "1.0.0"
                 }))
-            .WithTracing(tracing => ConfigureTracing(tracing, configService))
-            .WithMetrics(metrics => ConfigureMetrics(metrics, configService));
+            .WithTracing(tracing => ConfigureTracing(tracing, configuration))
+            .WithMetrics(metrics => ConfigureMetrics(metrics));
 
         return services;
     }
 
-    private static void ConfigureTracing(TracerProviderBuilder tracing, IObservabilityConfigurationService config)
+    private static void ConfigureTracing(TracerProviderBuilder tracing, IConfiguration configuration)
     {
         // ASP.NET Core Instrumentation
         tracing.AddAspNetCoreInstrumentation(options =>
         {
             options.RecordException = true;
-            options.EnrichWithHttpRequest = (activity, httpRequest) =>
-            {
-                activity.SetTag("http.request.body.size", httpRequest.ContentLength?.ToString());
-                activity.SetTag("http.request.method", httpRequest.Method);
-                activity.SetTag("http.request.url", $"{httpRequest.Scheme}://{httpRequest.Host}{httpRequest.Path}{httpRequest.QueryString}");
-            };
-            options.EnrichWithHttpResponse = (activity, httpResponse) =>
-            {
-                activity.SetTag("http.response.body.size", httpResponse.ContentLength?.ToString());
-                activity.SetTag("http.response.status_code", httpResponse.StatusCode.ToString());
-            };
         });
 
         // HTTP Client Instrumentation
-        tracing.AddHttpClientInstrumentation(options =>
-        {
-            options.RecordException = true;
-            options.EnrichWithHttpRequestMessage = (activity, httpRequestMessage) =>
-            {
-                activity.SetTag("http.client.request.uri", httpRequestMessage.RequestUri?.ToString());
-                activity.SetTag("http.client.request.method", httpRequestMessage.Method.ToString());
-            };
-            options.EnrichWithHttpResponseMessage = (activity, httpResponseMessage) =>
-            {
-                activity.SetTag("http.client.response.status_code", httpResponseMessage.StatusCode.ToString());
-            };
-        });
+        tracing.AddHttpClientInstrumentation();
 
         // Console Exporter (apenas para debug)
-        if (config.IsConsoleExporterEnabled())
+        if (configuration.GetValue<bool>("OpenTelemetry:EnableConsoleExporter", false))
         {
             tracing.AddConsoleExporter();
-            Console.WriteLine("🔧 OpenTelemetry Tracing: Console Exporter HABILITADO");
-        }
-
-        // Status do Application Insights
-        if (config.IsApplicationInsightsConfigured())
-        {
-            Console.WriteLine("✅ OpenTelemetry Tracing: Integrado com Application Insights");
-        }
-        else
-        {
-            Console.WriteLine("⚠️ OpenTelemetry Tracing: Sem Application Insights");
         }
     }
 
-    private static void ConfigureMetrics(MeterProviderBuilder metrics, IObservabilityConfigurationService config)
+    private static void ConfigureMetrics(MeterProviderBuilder metrics)
     {
         // ASP.NET Core Metrics
         metrics.AddAspNetCoreInstrumentation();
@@ -135,21 +98,10 @@ public static class ObservabilityService
         try
         {
             metrics.AddRuntimeInstrumentation();
-            Console.WriteLine("✅ OpenTelemetry Metrics: Runtime instrumentation HABILITADO");
         }
         catch
         {
-            Console.WriteLine("⚠️ OpenTelemetry Metrics: Runtime instrumentation NÃO DISPONÍVEL");
-        }
-
-        // Status do Application Insights
-        if (config.IsApplicationInsightsConfigured())
-        {
-            Console.WriteLine("✅ OpenTelemetry Metrics: Integrado com Application Insights");
-        }
-        else
-        {
-            Console.WriteLine("⚠️ OpenTelemetry Metrics: Sem Application Insights");
+            // Runtime instrumentation não disponível
         }
     }
 }
