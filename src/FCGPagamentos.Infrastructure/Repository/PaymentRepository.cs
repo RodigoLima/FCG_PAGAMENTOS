@@ -50,9 +50,6 @@ public class PaymentRepository : IPaymentRepository
 
     public async Task SaveChangesAsync(CancellationToken ct)
     {
-        // Salva mudanças no aggregate
-        await _db.SaveChangesAsync(ct);
-        
         // Salva eventos não confirmados de todos os aggregates
         var payments = _db.ChangeTracker.Entries<Payment>()
             .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added)
@@ -68,6 +65,7 @@ public class PaymentRepository : IPaymentRepository
             payment.MarkEventsAsCommitted();
         }
         
+        // Salva mudanças no aggregate
         await _db.SaveChangesAsync(ct);
     }
 }

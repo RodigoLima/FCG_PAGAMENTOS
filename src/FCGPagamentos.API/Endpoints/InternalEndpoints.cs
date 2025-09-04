@@ -2,65 +2,183 @@
 using System.Text.Json;
 using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Application.Abstractions;
+using FCGPagamentos.API.Services;
+using FCGPagamentos.Domain.Entities;
+using FCGPagamentos.Application.DTOs;
+using FCGPagamentos.Domain.ValueObjects;
+using FCGPagamentos.Domain.Enums;
+using System.Diagnostics;
 
 namespace FCGPagamentos.API.Endpoints;
 
 public static class InternalEndpoints
 {
-    public static IEndpointRouteBuilder MapInternal(this IEndpointRouteBuilder app)
+    private static async Task<IResult> ProcessPaymentStatusChange(
+        Guid id, 
+        AppDbContext db, 
+        IEventStore eventStore, 
+        HttpRequest req, 
+        IConfiguration cfg,
+        IPaymentObservabilityService observability, 
+        HttpContext context,
+        Action<Payment> statusChangeAction)
     {
-        app.MapPost("/internal/payments/{id:guid}/mark-processed", async (
-            Guid id, AppDbContext db, IEventStore eventStore, HttpRequest req, IConfiguration cfg) =>
+        var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+        var stopwatch = Stopwatch.StartNew();
+        
+        try
         {
+            // Observabilidade da requisição
+            observability.TrackPaymentRequest(id, 0, correlationId);
+            
             // Autorização simples entre serviços (segredo compartilhado)
             var token = req.Headers["x-internal-token"].ToString();
             if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
+            {
+                observability.TrackPaymentFailure(id, 0, "Unauthorized internal request", correlationId);
                 return Results.Unauthorized();
+            }
 
-            var p = await db.Payments.FirstOrDefaultAsync(x => x.Id == id);
-            if (p is null) return Results.NotFound();
+            var payment = await db.Payments.FirstOrDefaultAsync(x => x.Id == id);
+            if (payment is null) 
+            {
+                observability.TrackPaymentFailure(id, 0, "Payment not found for internal processing", correlationId);
+                return Results.NotFound();
+            }
 
-            p.MarkProcessed(DateTime.UtcNow);
+            // Aplica a mudança de status
+            statusChangeAction(payment);
             
             // Salva os eventos não commitados usando Event Sourcing
-            foreach (var @event in p.UncommittedEvents)
+            foreach (var @event in payment.UncommittedEvents)
             {
                 await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
             }
             
             // Marca os eventos como commitados
-            p.MarkEventsAsCommitted();
+            payment.MarkEventsAsCommitted();
 
             await db.SaveChangesAsync();
+            
+            // Observabilidade de sucesso
+            stopwatch.Stop();
+            observability.TrackPaymentSuccess(id, payment.Value.Amount, correlationId, stopwatch.Elapsed);
+            
             return Results.NoContent();
-        })
-        .ExcludeFromDescription(); // não expor no Swagger
-
-        app.MapPut("/internal/payments/{id:guid}/update-value", async (
-            Guid id, decimal newAmount, AppDbContext db, HttpRequest req, IConfiguration cfg) =>
+        }
+        catch (Exception ex)
         {
-            // Autorização simples entre serviços (segredo compartilhado)
-            var token = req.Headers["x-internal-token"].ToString();
-            if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
-                return Results.Unauthorized();
+            stopwatch.Stop();
+            observability.TrackPaymentFailure(id, 0, ex.Message, correlationId);
+            throw;
+        }
+    }
 
-            var p = await db.Payments.FirstOrDefaultAsync(x => x.Id == id);
-            if (p is null) return Results.NotFound();
-
-            // Atualiza o valor do pagamento
-            p.Value = new FCGPagamentos.Domain.ValueObjects.Money(newAmount, "BRL");
-            
-            // O interceptor automaticamente atualizará o UpdatedAt aqui
-            await db.SaveChangesAsync();
-            
-            return Results.Ok(new { 
-                Id = p.Id, 
-                Value = p.Value.Amount, 
-                CreatedAt = p.CreatedAt, 
-                UpdatedAt = p.UpdatedAt 
-            });
+    public static IEndpointRouteBuilder MapInternal(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/internal/payments/{id:guid}/mark-processing", async (
+            Guid id, AppDbContext db, IEventStore eventStore, HttpRequest req, IConfiguration cfg,
+            IPaymentObservabilityService observability, HttpContext context) =>
+        {
+            return await ProcessPaymentStatusChange(id, db, eventStore, req, cfg, observability, context, 
+                p => p.MarkProcessing(DateTime.UtcNow));
         })
         .ExcludeFromDescription(); // não expor no Swagger
+
+        app.MapPost("/internal/payments/{id:guid}/mark-approved", async (
+            Guid id, AppDbContext db, IEventStore eventStore, HttpRequest req, IConfiguration cfg,
+            IPaymentObservabilityService observability, HttpContext context) =>
+        {
+            return await ProcessPaymentStatusChange(id, db, eventStore, req, cfg, observability, context, 
+                p => p.MarkApproved(DateTime.UtcNow));
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
+
+        app.MapPost("/internal/payments/{id:guid}/mark-declined", async (
+            Guid id, AppDbContext db, IEventStore eventStore, HttpRequest req, IConfiguration cfg,
+            IPaymentObservabilityService observability, HttpContext context) =>
+        {
+            return await ProcessPaymentStatusChange(id, db, eventStore, req, cfg, observability, context, 
+                p => p.MarkDeclined(DateTime.UtcNow, "Payment declined by processor"));
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
+
+        app.MapPost("/internal/payments/{id:guid}/mark-failed", async (
+            Guid id, AppDbContext db, IEventStore eventStore, HttpRequest req, IConfiguration cfg,
+            IPaymentObservabilityService observability, HttpContext context) =>
+        {
+            return await ProcessPaymentStatusChange(id, db, eventStore, req, cfg, observability, context, 
+                p => p.MarkFailed(DateTime.UtcNow, "Payment processing failed"));
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
+
+        // Endpoint para receber eventos de outros microserviços para criar pagamentos
+        app.MapPost("/internal/payments", async (
+            PaymentRequestedMessage request, 
+            AppDbContext db, 
+            IEventStore eventStore, 
+            HttpRequest req, 
+            IConfiguration cfg,
+            IPaymentObservabilityService observability, 
+            HttpContext context) =>
+        {
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId;
+            var stopwatch = Stopwatch.StartNew();
+            
+            try
+            {
+                // Autorização simples entre serviços
+                var token = req.Headers["x-internal-token"].ToString();
+                if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
+                {
+                    observability.TrackPaymentFailure(request.PaymentId, 0, "Unauthorized internal request", correlationId);
+                    return Results.Unauthorized();
+                }
+
+                // Verifica se o pagamento já existe
+                var existingPayment = await db.Payments.FirstOrDefaultAsync(x => x.Id == request.PaymentId);
+                if (existingPayment != null)
+                {
+                    observability.TrackPaymentFailure(request.PaymentId, request.Amount, "Payment already exists", correlationId);
+                    return Results.Conflict(new { message = "Payment already exists" });
+                }
+
+                // Cria o pagamento
+                var money = new Money(request.Amount, request.Currency);
+                var paymentMethod = Enum.Parse<PaymentMethod>(request.PaymentMethod);
+                var payment = new Payment(
+                    request.UserId, 
+                    request.GameId, 
+                    request.CorrelationId, 
+                    money, 
+                    paymentMethod, 
+                    request.OccurredAt
+                );
+
+                // Salva os eventos usando Event Sourcing
+                foreach (var @event in payment.UncommittedEvents)
+                {
+                    await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
+                }
+                
+                payment.MarkEventsAsCommitted();
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync();
+                
+                stopwatch.Stop();
+                observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);
+                
+                return Results.Created($"/internal/payments/{request.PaymentId}", new { id = request.PaymentId });
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                observability.TrackPaymentFailure(request.PaymentId, request.Amount, ex.Message, correlationId);
+                return Results.Problem($"Erro ao criar pagamento: {ex.Message}");
+            }
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
+        
         return app;
     }
 }
