@@ -4,6 +4,9 @@ using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Application.Abstractions;
 using FCGPagamentos.API.Services;
 using FCGPagamentos.Domain.Entities;
+using FCGPagamentos.Application.DTOs;
+using FCGPagamentos.Domain.ValueObjects;
+using FCGPagamentos.Domain.Enums;
 using System.Diagnostics;
 
 namespace FCGPagamentos.API.Endpoints;
@@ -106,6 +109,73 @@ public static class InternalEndpoints
         {
             return await ProcessPaymentStatusChange(id, db, eventStore, req, cfg, observability, context, 
                 p => p.MarkFailed(DateTime.UtcNow, "Payment processing failed"));
+        })
+        .ExcludeFromDescription(); // não expor no Swagger
+
+        // Endpoint para receber eventos de outros microserviços para criar pagamentos
+        app.MapPost("/internal/payments", async (
+            PaymentRequestedMessage request, 
+            AppDbContext db, 
+            IEventStore eventStore, 
+            HttpRequest req, 
+            IConfiguration cfg,
+            IPaymentObservabilityService observability, 
+            HttpContext context) =>
+        {
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId;
+            var stopwatch = Stopwatch.StartNew();
+            
+            try
+            {
+                // Autorização simples entre serviços
+                var token = req.Headers["x-internal-token"].ToString();
+                if (string.IsNullOrEmpty(token) || token != cfg["InternalAuth:Token"])
+                {
+                    observability.TrackPaymentFailure(request.PaymentId, 0, "Unauthorized internal request", correlationId);
+                    return Results.Unauthorized();
+                }
+
+                // Verifica se o pagamento já existe
+                var existingPayment = await db.Payments.FirstOrDefaultAsync(x => x.Id == request.PaymentId);
+                if (existingPayment != null)
+                {
+                    observability.TrackPaymentFailure(request.PaymentId, request.Amount, "Payment already exists", correlationId);
+                    return Results.Conflict(new { message = "Payment already exists" });
+                }
+
+                // Cria o pagamento
+                var money = new Money(request.Amount, request.Currency);
+                var paymentMethod = Enum.Parse<PaymentMethod>(request.PaymentMethod);
+                var payment = new Payment(
+                    request.UserId, 
+                    request.GameId, 
+                    request.CorrelationId, 
+                    money, 
+                    paymentMethod, 
+                    request.OccurredAt
+                );
+
+                // Salva os eventos usando Event Sourcing
+                foreach (var @event in payment.UncommittedEvents)
+                {
+                    await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
+                }
+                
+                payment.MarkEventsAsCommitted();
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync();
+                
+                stopwatch.Stop();
+                observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);
+                
+                return Results.Created($"/internal/payments/{request.PaymentId}", new { id = request.PaymentId });
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                observability.TrackPaymentFailure(request.PaymentId, request.Amount, ex.Message, correlationId);
+                return Results.Problem($"Erro ao criar pagamento: {ex.Message}");
+            }
         })
         .ExcludeFromDescription(); // não expor no Swagger
         
