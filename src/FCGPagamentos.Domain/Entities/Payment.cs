@@ -7,10 +7,12 @@ namespace FCGPagamentos.Domain.Entities;
 public class Payment: BaseModel, IAggregateRoot
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
-    public Guid UserId { get; private set; }
-    public Guid GameId { get; private set; }
+    public string UserId { get; private set; } = string.Empty;
+    public string GameId { get; private set; } = string.Empty;
+    public string CorrelationId { get; private set; } = string.Empty;
     public Money Value { get; set; } = default!;
-    public PaymentStatus Status { get; private set; } = PaymentStatus.Requested;
+    public PaymentMethod Method { get; private set; }
+    public PaymentStatus Status { get; private set; } = PaymentStatus.Pending;
     public DateTime? ProcessedAt { get; private set; }
 
     // Event Sourcing
@@ -21,46 +23,61 @@ public class Payment: BaseModel, IAggregateRoot
 
     private Payment() { } // EF
 
-    public Payment(Guid userId, Guid gameId, Money value, DateTime now)
+    public Payment(string userId, string gameId, string correlationId, Money value, PaymentMethod method, DateTime now)
     {
         if (value.Amount <= 0) throw new ArgumentOutOfRangeException(nameof(value));
+        if (string.IsNullOrWhiteSpace(userId)) throw new ArgumentException("UserId cannot be null or empty", nameof(userId));
+        if (string.IsNullOrWhiteSpace(gameId)) throw new ArgumentException("GameId cannot be null or empty", nameof(gameId));
+        if (string.IsNullOrWhiteSpace(correlationId)) throw new ArgumentException("CorrelationId cannot be null or empty", nameof(correlationId));
         
-        UserId = userId; 
+        UserId = userId;
         GameId = gameId; 
+        CorrelationId = correlationId;
         Value = value; 
+        Method = method;
         CreatedAt = now;
+        UpdatedAt = now;
         Version = 1;
 
-        // Adiciona evento de criação
-        AddEvent(new PaymentCreated(Id, userId, gameId, value, Version));
+        // Adiciona eventos de criação e enfileiramento
+        AddEvent(new PaymentCreated(Id, userId, gameId, correlationId, value.Amount, value.Currency, method.ToString(), Version));
+        AddEvent(new PaymentQueued(Id, userId, gameId, correlationId, Version + 1));
     }
-
-    public void MarkProcessed(DateTime now) 
+    public void MarkProcessing(DateTime now) 
     { 
-        Status = PaymentStatus.Processed; 
-        ProcessedAt = now; 
+        Status = PaymentStatus.Processing; 
+        UpdatedAt = now;
         Version++;
-        AddEvent(new PaymentProcessed(Id, now, Version));
+        AddEvent(new PaymentProcessing(Id, CorrelationId, now, Version));
     }
-
+    public void MarkApproved(DateTime now) 
+    { 
+        Status = PaymentStatus.Approved; 
+        ProcessedAt = now; 
+        UpdatedAt = now;
+        Version++;
+        AddEvent(new PaymentApproved(Id, CorrelationId, now, Version));
+    }
+    public void MarkDeclined(DateTime now, string? reason = null) 
+    { 
+        Status = PaymentStatus.Declined; 
+        ProcessedAt = now; 
+        UpdatedAt = now;
+        Version++;
+        AddEvent(new PaymentDeclined(Id, CorrelationId, now, reason, Version));
+    }
     public void MarkFailed(DateTime now, string? reason = null) 
     { 
         Status = PaymentStatus.Failed; 
         ProcessedAt = now; 
+        UpdatedAt = now;
         Version++;
-        AddEvent(new PaymentFailed(Id, now, reason, Version));
+        AddEvent(new PaymentFailed(Id, CorrelationId, now, reason, Version));
     }
-
-    private void AddEvent(Event @event)
-    {
-        _uncommittedEvents.Add(@event);
-    }
-
     public void MarkEventsAsCommitted()
     {
         _uncommittedEvents.Clear();
     }
-
     public void LoadFromHistory(IEnumerable<Event> events)
     {
         foreach (var @event in events.OrderBy(e => e.Version))
@@ -69,17 +86,30 @@ public class Payment: BaseModel, IAggregateRoot
             Version = @event.Version;
         }
     }
-
+    private void AddEvent(Event @event)
+    {
+        _uncommittedEvents.Add(@event);
+    }
     private void ApplyEvent(Event @event)
     {
         switch (@event)
         {
             case PaymentCreated e:
-                // Estado já está correto, só atualizar versão
+                Status = PaymentStatus.Pending;
                 break;
-            case PaymentProcessed e:
-                Status = PaymentStatus.Processed;
-                ProcessedAt = e.ProcessedAt;
+            case PaymentQueued e:
+                Status = PaymentStatus.Pending;
+                break;
+            case PaymentProcessing e:
+                Status = PaymentStatus.Processing;
+                break;
+            case PaymentApproved e:
+                Status = PaymentStatus.Approved;
+                ProcessedAt = e.ApprovedAt;
+                break;
+            case PaymentDeclined e:
+                Status = PaymentStatus.Declined;
+                ProcessedAt = e.DeclinedAt;
                 break;
             case PaymentFailed e:
                 Status = PaymentStatus.Failed;

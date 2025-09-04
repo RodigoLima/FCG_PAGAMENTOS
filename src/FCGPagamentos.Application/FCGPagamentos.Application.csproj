@@ -12,9 +12,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Commands\" />
-  </ItemGroup>
+
 
   <ItemGroup>
     <ProjectReference Include="..\FCGPagamentos.Domain\FCGPagamentos.Domain.csproj" />

@@ -8,11 +8,7 @@ using FCGPagamentos.Infrastructure.Queues;
 using FCGPagamentos.API.Services;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Resources;
 using Serilog;
-using System.Diagnostics.Metrics;
 
 namespace FCGPagamentos.API.DI;
 
@@ -40,91 +36,52 @@ public static class CompositionRoot
         s.AddScoped<GetPaymentHandler>();
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
-        // Configuração condicional do publisher baseada no ambiente
+        // Publisher baseado no ambiente
         var isDevelopment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
         var useAzureEmulator = cfg.GetValue<bool>("AzureStorage:UseEmulator", true);
         
         if (isDevelopment && !useAzureEmulator)
         {
-            // Usa mock em desenvolvimento quando não quiser usar o emulador
             s.AddScoped<IPaymentProcessingPublisher, MockPaymentPublisher>();
         }
         else
         {
-            // Usa Azure Queue (real ou emulador)
             s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
-            s.AddScoped<AzureQueuePaymentPublisher>(); // Registra também a classe concreta para o HealthCheck
-        }
-        
-        // Configuração de logging
-        s.AddLogging();
-
-        // Serviços de observabilidade
-        s.AddSingleton<BusinessMetricsService>(provider => 
-        {
-            var meter = new Meter("FCGPagamentos", "1.0.0");
-            return new BusinessMetricsService(meter);
-        });
-        s.AddScoped<IStructuredLoggingService, StructuredLoggingService>();
-        
-        // Health checks customizados
-        s.AddScoped<DatabaseHealthCheck>();
-        
-        if (isDevelopment && !useAzureEmulator)
-        {
-            s.AddScoped<MockQueueHealthCheck>();
-        }
-        else
-        {
-            s.AddScoped<AzureQueueHealthCheck>();
         }
 
+        // Serviços
+        s.AddScoped<IPaymentObservabilityService, PaymentObservabilityService>();
+        
         // Health checks
-        var healthChecksBuilder = s.AddHealthChecks()
-            .AddCheck<DatabaseHealthCheck>("database");
-            
+        var healthChecks = s.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+        
         if (isDevelopment && !useAzureEmulator)
         {
-            healthChecksBuilder.AddCheck<MockQueueHealthCheck>("mock_queue");
+            healthChecks.AddCheck<MockQueueHealthCheck>("queue");
         }
         else
         {
-            healthChecksBuilder.AddCheck<AzureQueueHealthCheck>("azure_queue");
+            healthChecks.AddCheck<AzureQueueHealthCheck>("queue");
         }
 
         return s;
     }
 
-    public static IServiceCollection AddObservability(this IServiceCollection s, IConfiguration cfg)
-    {
-        // Configuração do OpenTelemetry
-        s.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0"))
-            .WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation()
-                // Removed EntityFrameworkCore instrumentation as it only has beta versions
-                .AddHttpClientInstrumentation()
-                // Removed Jaeger exporter as it only has RC versions
-                .AddConsoleExporter())
-            .WithMetrics(metrics => metrics
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation());
-
-        return s;
-    }
+    // Método removido - configuração movida para ObservabilityService
 
     public static IHostBuilder AddSerilog(this IHostBuilder builder)
     {
-        Log.Logger = new LoggerConfiguration()
-            .WriteTo.Console()
-            .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day)
-            .Enrich.FromLogContext()
-            .Enrich.WithProperty("Application", "FCGPagamentos.API")
-            .CreateLogger();
+        return builder.UseSerilog((context, configuration) =>
+        {
+            configuration
+                .ReadFrom.Configuration(context.Configuration)
+                .Enrich.FromLogContext()
+                .Enrich.WithProperty("Application", "FCGPagamentos.API")
+                .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+                .WriteTo.Console()
+                .WriteTo.File("logs/fcg-pagamentos-.txt", rollingInterval: RollingInterval.Day);
 
-        builder.UseSerilog();
-
-        return builder;
+            // Serilog configurado
+        });
     }
 }

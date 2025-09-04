@@ -25,14 +25,27 @@ public class CreatePaymentHandler
     {
         var now = _clock.UtcNow;
 
-        var payment = new Payment(cmd.UserId, cmd.GameId, new Money(cmd.Amount, cmd.Currency), now);
+        var payment = new Payment(cmd.UserId, cmd.GameId, cmd.CorrelationId, new Money(cmd.Amount, cmd.Currency), cmd.Method, now);
         await _repo.AddAsync(payment, ct);
 
         await _repo.SaveChangesAsync(ct);
 
-        await _publisher.PublishRequestedAsync(payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency, ct);
+        // Criar mensagem completa para processamento
+        var message = new PaymentRequestedMessage(
+            payment.Id,
+            payment.CorrelationId,
+            payment.UserId,
+            payment.GameId,
+            payment.Value.Amount,
+            payment.Value.Currency,
+            payment.Method.ToString(),
+            now
+        );
 
-        return new PaymentDto(payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency,
-                              payment.Status, payment.CreatedAt, payment.ProcessedAt);
+        // Enfileirar mensagem para processamento após PaymentQueued
+        await _publisher.PublishPaymentForProcessingAsync(message, ct);
+
+        return new PaymentDto(payment.Id, payment.UserId, payment.GameId, cmd.Amount, cmd.Currency, cmd.Method,
+                              payment.Status, payment.CreatedAt, payment.UpdatedAt, payment.ProcessedAt);
     }
 }

@@ -1,9 +1,10 @@
-﻿namespace FCGPagamentos.Application.Abstractions;
+﻿using FCGPagamentos.Application.DTOs;
+
+namespace FCGPagamentos.Application.Abstractions;
 
 public interface IPaymentProcessingPublisher
 {
-    Task PublishRequestedAsync(
-        Guid paymentId, Guid userId, Guid gameId,
-        decimal amount, string currency,
+    Task PublishPaymentForProcessingAsync(
+        PaymentRequestedMessage message,
         CancellationToken ct);
 }

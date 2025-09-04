@@ -6,6 +6,8 @@ public class CorrelationIdMiddleware
 {
     private readonly RequestDelegate _next;
     private const string CorrelationIdHeader = "X-Correlation-ID";
+    private const string TraceParentHeader = "traceparent";
+    private const string TraceStateHeader = "tracestate";
 
     public CorrelationIdMiddleware(RequestDelegate next)
     {
@@ -16,16 +18,14 @@ public class CorrelationIdMiddleware
     {
         var correlationId = GetOrGenerateCorrelationId(context);
         
-        // Adiciona ao contexto para uso nos endpoints
         context.Items["CorrelationId"] = correlationId;
-        
-        // Adiciona ao header de resposta
         context.Response.Headers[CorrelationIdHeader] = correlationId;
         
-        // Adiciona ao Activity.Current para OpenTelemetry
+        // Configura tags básicas para observabilidade
         if (Activity.Current != null)
         {
             Activity.Current.SetTag("correlation.id", correlationId);
+            Activity.Current.SetTag("service.name", "FCGPagamentos.API");
         }
         
         await _next(context);
