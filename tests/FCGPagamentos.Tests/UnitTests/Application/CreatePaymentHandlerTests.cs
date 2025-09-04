@@ -29,7 +29,7 @@ public class CreatePaymentHandlerTests
         Id: Guid.NewGuid(),
         UserId: Guid.NewGuid().ToString(),
         GameId: Guid.NewGuid().ToString(),
-        CorrelationId: "",
+        CorrelationId: Guid.NewGuid().ToString(),
         Amount: 100.50m,
         Currency: "BRL",
         Method: PaymentMethod.Pix
@@ -67,16 +67,16 @@ public class CreatePaymentHandlerTests
     _repoMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
 
     _publisherMock.Verify(p => p.PublishPaymentForProcessingAsync(
-      new PaymentRequestedMessage(
-        It.IsAny<Guid>(), 
-        command.CorrelationId, 
-        command.UserId, 
-        command.GameId, 
-        command.Amount, 
-        command.Currency, 
-        command.Method.ToString(),
-        now,
-        ""
-      ), CancellationToken.None));
+      It.Is<PaymentRequestedMessage>(m =>
+        m.PaymentId == result.Id &&
+        m.CorrelationId == command.CorrelationId &&
+        m.UserId == command.UserId &&
+        m.GameId == command.GameId &&
+        m.Amount == command.Amount &&
+        m.Currency == command.Currency &&
+        m.OccurredAt == now
+      ),
+      It.IsAny<CancellationToken>()),
+    Times.Once);
   }
 }

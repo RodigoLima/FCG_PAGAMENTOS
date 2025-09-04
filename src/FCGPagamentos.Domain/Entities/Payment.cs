@@ -43,7 +43,6 @@ public class Payment: BaseModel, IAggregateRoot
         AddEvent(new PaymentCreated(Id, userId, gameId, correlationId, value.Amount, value.Currency, method.ToString(), Version));
         AddEvent(new PaymentQueued(Id, userId, gameId, correlationId, Version + 1));
     }
-
     public void MarkProcessing(DateTime now) 
     { 
         Status = PaymentStatus.Processing; 
@@ -51,7 +50,6 @@ public class Payment: BaseModel, IAggregateRoot
         Version++;
         AddEvent(new PaymentProcessing(Id, CorrelationId, now, Version));
     }
-
     public void MarkApproved(DateTime now) 
     { 
         Status = PaymentStatus.Approved; 
@@ -60,7 +58,6 @@ public class Payment: BaseModel, IAggregateRoot
         Version++;
         AddEvent(new PaymentApproved(Id, CorrelationId, now, Version));
     }
-
     public void MarkDeclined(DateTime now, string? reason = null) 
     { 
         Status = PaymentStatus.Declined; 
@@ -69,7 +66,6 @@ public class Payment: BaseModel, IAggregateRoot
         Version++;
         AddEvent(new PaymentDeclined(Id, CorrelationId, now, reason, Version));
     }
-
     public void MarkFailed(DateTime now, string? reason = null) 
     { 
         Status = PaymentStatus.Failed; 
@@ -78,17 +74,10 @@ public class Payment: BaseModel, IAggregateRoot
         Version++;
         AddEvent(new PaymentFailed(Id, CorrelationId, now, reason, Version));
     }
-
-    private void AddEvent(Event @event)
-    {
-        _uncommittedEvents.Add(@event);
-    }
-
     public void MarkEventsAsCommitted()
     {
         _uncommittedEvents.Clear();
     }
-
     public void LoadFromHistory(IEnumerable<Event> events)
     {
         foreach (var @event in events.OrderBy(e => e.Version))
@@ -97,7 +86,10 @@ public class Payment: BaseModel, IAggregateRoot
             Version = @event.Version;
         }
     }
-
+    private void AddEvent(Event @event)
+    {
+        _uncommittedEvents.Add(@event);
+    }
     private void ApplyEvent(Event @event)
     {
         switch (@event)
