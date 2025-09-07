@@ -1,14 +1,14 @@
-﻿// tests/FCGPagamentos.Tests/UnitTests/Domain/PaymentEntityTests.cs
-using FCGPagamentos.Domain.Entities;
+﻿using FCGPagamentos.Domain.Entities;
 using FCGPagamentos.Domain.Events;
 using FCGPagamentos.Domain.Enums;
 using FCGPagamentos.Domain.ValueObjects;
-using Xunit;
 
 namespace FCGPagamentos.Tests.UnitTests.Domain;
 
 public class PaymentEntityTests
 {
+  [Trait("Category", "UnitTest")]
+  [Trait("Module", "Constructor")]
   [Fact]
   public void Constructor_ShouldCreatePaymentWithRequestedStatusAndOneEvent()
   {
@@ -31,7 +31,8 @@ public class PaymentEntityTests
     Assert.NotEmpty(payment.UncommittedEvents);
     Assert.IsType<PaymentCreated>(payment.UncommittedEvents.First());
   }
-
+  [Trait("Category", "UnitTest")]
+  [Trait("Module", "Mark")]
   [Fact]
   public void MarkProcessing_ShouldChangeStatusAndAddEvent()
   {
