@@ -21,6 +21,8 @@ public class CreatePaymentHandlerTests
     _handler = new CreatePaymentHandler(_repoMock.Object, _clockMock.Object, _publisherMock.Object);
   }
 
+  [Trait("Category", "UnitTest")]
+  [Trait("Module", "Handle")]
   [Fact]
   public async Task Handle_ShouldCreatePaymentAndPublishMessage_WhenCommandIsValid()
   {
