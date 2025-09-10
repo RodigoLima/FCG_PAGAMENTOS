@@ -37,16 +37,18 @@ public static class CompositionRoot
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
         // Publisher baseado no ambiente
-        var isDevelopment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
-        var useAzureEmulator = cfg.GetValue<bool>("AzureStorage:UseEmulator", true);
+        var environment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") ?? "Production";
+        var isDevelopment = environment == "Development";
+        var useAzureEmulator = cfg.GetValue<bool>("AzureStorage:UseEmulator", false);
         
-        if (isDevelopment && !useAzureEmulator)
+        if (isDevelopment && useAzureEmulator)
         {
             s.AddScoped<IPaymentProcessingPublisher, MockPaymentPublisher>();
         }
         else
         {
             s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
+            s.AddScoped<AzureQueuePaymentPublisher>(); 
         }
 
         // Serviços
@@ -55,7 +57,7 @@ public static class CompositionRoot
         // Health checks
         var healthChecks = s.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
         
-        if (isDevelopment && !useAzureEmulator)
+        if (isDevelopment && useAzureEmulator)
         {
             healthChecks.AddCheck<MockQueueHealthCheck>("queue");
         }
