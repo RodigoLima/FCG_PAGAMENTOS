@@ -1,138 +1,112 @@
 ﻿using FCGPagamentos.Domain.Entities;
 using FCGPagamentos.Domain.Events;
 using FCGPagamentos.Domain.Enums;
-using FCGPagamentos.Domain.ValueObjects;
+using FCGPagamentos.Tests.UnitTests.Domain.Builders;
 
 namespace FCGPagamentos.Tests.UnitTests.Domain;
 
 public class PaymentEntityTests
 {
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Constructor")]
-  [Fact]
-  public void Constructor_ShouldCreatePaymentWithRequestedStatusAndOneEvent()
-  {
-    // Arrange
-    var userId = Guid.NewGuid().ToString();
-    var gameId = Guid.NewGuid().ToString();
-    var correlationKey = Guid.NewGuid().ToString();
-    var method = PaymentMethod.Pix;
-    var value = new Money(100.00m, "BRL");
-    var now = DateTime.UtcNow;
+    private readonly PaymentBuilder _paymentBuilder;
 
-    // Act
-    var payment = new Payment(userId, gameId, correlationKey, value, method, now);
+    public PaymentEntityTests()
+    {
+        _paymentBuilder = new PaymentBuilder();
+    }
 
-    // Assert
-    Assert.NotEqual(Guid.Empty, payment.Id);
-    Assert.Equal(userId, payment.UserId);
-    Assert.Equal(PaymentStatus.Pending, payment.Status);
-    Assert.Equal(1, payment.Version);
-    Assert.NotEmpty(payment.UncommittedEvents);
-    Assert.IsType<PaymentCreated>(payment.UncommittedEvents.First());
-  }
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Mark")]
-  [Fact]
-  public void MarkProcessing_ShouldChangeStatusAndAddEvent()
-  {
-    // Arrange
-    var userId = Guid.NewGuid().ToString();
-    var gameId = Guid.NewGuid().ToString();
-    var correlationKey = Guid.NewGuid().ToString();
-    var method = PaymentMethod.Pix;
-    var value = new Money(100.00m, "BRL");
-    var now = DateTime.UtcNow;
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Constructor")]
+    [Fact]
+    public void Constructor_ShouldCreatePaymentWithRequestedStatusAndOneEvent()
+    {
+        // Arrange
+        var payment = _paymentBuilder.Build();
 
-    var payment = new Payment(userId, gameId, correlationKey, value, method, now);
-    payment.MarkEventsAsCommitted();
+        // Assert
+        payment.Id.Should().NotBe(Guid.Empty);
+        payment.Status.Should().Be(PaymentStatus.Pending);
+        payment.Version.Should().Be(1);
+        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.First().Should().BeOfType<PaymentCreated>();
+    }
 
-    // Act
-    var processedAt = DateTime.UtcNow.AddMinutes(5);
-    payment.MarkProcessing(processedAt);
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Mark")]
+    [Fact]
+    public void MarkProcessing_ShouldChangeStatusAndAddEvent()
+    {
+        // Arrange
+        var payment = _paymentBuilder.Build();
+        payment.MarkEventsAsCommitted();
+        var processedAt = new DateTime(2025, 9, 2, 10, 5, 0);
 
-    // Assert
-    Assert.Equal(PaymentStatus.Processing, payment.Status);
-    Assert.Equal(2, payment.Version);
-    Assert.Single(payment.UncommittedEvents);
-    Assert.IsType<PaymentProcessing>(payment.UncommittedEvents.First());
-  }
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Mark")]
-  [Fact]
-  public void MarkApproved_ShouldChangeStatusAndAddEvent()
-  {
-    // Arrange
-    var userId = Guid.NewGuid().ToString();
-    var gameId = Guid.NewGuid().ToString();
-    var correlationKey = Guid.NewGuid().ToString();
-    var method = PaymentMethod.Pix;
-    var value = new Money(100.00m, "BRL");
-    var now = DateTime.UtcNow;
+        // Act
+        payment.MarkProcessing(processedAt);
 
-    var payment = new Payment(userId, gameId, correlationKey, value, method, now);
-    payment.MarkEventsAsCommitted();
+        // Assert
+        payment.Status.Should().Be(PaymentStatus.Processing);
+        payment.Version.Should().Be(2);
+        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.First().Should().BeOfType<PaymentProcessing>();
+    }
 
-    // Act
-    var aproved = DateTime.UtcNow.AddMinutes(5);
-    payment.MarkApproved(aproved);
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Mark")]
+    [Fact]
+    public void MarkApproved_ShouldChangeStatusAndAddEvent()
+    {
+        // Arrange
+        var payment = _paymentBuilder.Build();
+        payment.MarkEventsAsCommitted();
+        var approvedAt = new DateTime(2025, 9, 2, 10, 5, 0);
 
-    // Assert
-    Assert.Equal(PaymentStatus.Approved, payment.Status);
-    Assert.Equal(2, payment.Version);
-    Assert.Single(payment.UncommittedEvents);
-    Assert.IsType<PaymentApproved>(payment.UncommittedEvents.First());
-  }
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Mark")]
-  [Fact]
-  public void MarkDeclined_ShouldChangeStatusAndAddEvent()
-  {
-    // Arrange
-    var userId = Guid.NewGuid().ToString();
-    var gameId = Guid.NewGuid().ToString();
-    var correlationKey = Guid.NewGuid().ToString();
-    var method = PaymentMethod.Pix;
-    var value = new Money(100.00m, "BRL");
-    var now = DateTime.UtcNow;
+        // Act
+        payment.MarkApproved(approvedAt);
 
-    var payment = new Payment(userId, gameId, correlationKey, value, method, now);
-    payment.MarkEventsAsCommitted();
+        // Assert
+        payment.Status.Should().Be(PaymentStatus.Approved);
+        payment.Version.Should().Be(2);
+        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.First().Should().BeOfType<PaymentApproved>();
+    }
 
-    // Act
-    var declined = DateTime.UtcNow.AddMinutes(5);
-    payment.MarkDeclined(declined);
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Mark")]
+    [Fact]
+    public void MarkDeclined_ShouldChangeStatusAndAddEvent()
+    {
+        // Arrange
+        var payment = _paymentBuilder.Build();
+        payment.MarkEventsAsCommitted();
+        var declinedAt = new DateTime(2025, 9, 2, 10, 5, 0);
 
-    // Assert
-    Assert.Equal(PaymentStatus.Declined, payment.Status);
-    Assert.Equal(2, payment.Version);
-    Assert.Single(payment.UncommittedEvents);
-    Assert.IsType<PaymentDeclined>(payment.UncommittedEvents.First());
-  }
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Mark")]
-  [Fact]
-  public void MarkFailed_ShouldChangeStatusAndAddEvent()
-  {
-    // Arrange
-    var userId = Guid.NewGuid().ToString();
-    var gameId = Guid.NewGuid().ToString();
-    var correlationKey = Guid.NewGuid().ToString();
-    var method = PaymentMethod.Pix;
-    var value = new Money(100.00m, "BRL");
-    var now = DateTime.UtcNow;
+        // Act
+        payment.MarkDeclined(declinedAt);
 
-    var payment = new Payment(userId, gameId, correlationKey, value, method, now);
-    payment.MarkEventsAsCommitted();
+        // Assert
+        payment.Status.Should().Be(PaymentStatus.Declined);
+        payment.Version.Should().Be(2);
+        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.First().Should().BeOfType<PaymentDeclined>();
+    }
 
-    // Act
-    var declined = DateTime.UtcNow.AddMinutes(5);
-    payment.MarkFailed(declined);
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Mark")]
+    [Fact]
+    public void MarkFailed_ShouldChangeStatusAndAddEvent()
+    {
+        // Arrange
+        var payment = _paymentBuilder.Build();
+        payment.MarkEventsAsCommitted();
+        var failedAt = new DateTime(2025, 9, 2, 10, 5, 0);
 
-    // Assert
-    Assert.Equal(PaymentStatus.Failed, payment.Status);
-    Assert.Equal(2, payment.Version);
-    Assert.Single(payment.UncommittedEvents);
-    Assert.IsType<PaymentFailed>(payment.UncommittedEvents.First());
-  }
+        // Act
+        payment.MarkFailed(failedAt);
+
+        // Assert
+        payment.Status.Should().Be(PaymentStatus.Failed);
+        payment.Version.Should().Be(2);
+        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.First().Should().BeOfType<PaymentFailed>();
+    }
 }
