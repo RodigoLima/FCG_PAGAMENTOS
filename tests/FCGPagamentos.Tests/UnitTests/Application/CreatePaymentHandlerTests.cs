@@ -1,84 +1,110 @@
 ﻿using FCGPagamentos.Application.Abstractions;
-using FCGPagamentos.Application.DTOs;
 using FCGPagamentos.Application.UseCases.CreatePayment;
 using FCGPagamentos.Domain.Entities;
 using FCGPagamentos.Domain.Enums;
+using FCGPagamentos.Application.DTOs;
 
 namespace FCGPagamentos.Tests.UnitTests.Application;
 
 public class CreatePaymentHandlerTests
 {
-  private readonly Mock<IPaymentRepository> _repoMock;
-  private readonly Mock<IClock> _clockMock;
-  private readonly Mock<IPaymentProcessingPublisher> _publisherMock;
-  private readonly CreatePaymentHandler _handler;
+    private readonly Mock<IPaymentRepository> _repoMock;
+    private readonly Mock<IClock> _clockMock;
+    private readonly Mock<IPaymentProcessingPublisher> _publisherMock;
+    private readonly CreatePaymentHandler _handler;
+    private readonly Faker<CreatePaymentCommand> _commandFaker;
+    private readonly DateTime _now = new DateTime(2025, 9, 2, 10, 0, 0);
 
-  public CreatePaymentHandlerTests()
-  {
-    _repoMock = new Mock<IPaymentRepository>();
-    _clockMock = new Mock<IClock>();
-    _publisherMock = new Mock<IPaymentProcessingPublisher>();
-    _handler = new CreatePaymentHandler(_repoMock.Object, _clockMock.Object, _publisherMock.Object);
-  }
+    public CreatePaymentHandlerTests()
+    {
+        _repoMock = new Mock<IPaymentRepository>();
+        _clockMock = new Mock<IClock>();
+        _publisherMock = new Mock<IPaymentProcessingPublisher>();
+        _handler = new CreatePaymentHandler(_repoMock.Object, _clockMock.Object, _publisherMock.Object);
+        _clockMock.Setup(c => c.UtcNow).Returns(_now);
 
-  [Trait("Category", "UnitTest")]
-  [Trait("Module", "Handle")]
-  [Fact]
-  public async Task Handle_ShouldCreatePaymentAndPublishMessage_WhenCommandIsValid()
-  {
-    // Arrange
-    var command = new CreatePaymentCommand(
-        Id: Guid.NewGuid(),
-        UserId: Guid.NewGuid().ToString(),
-        GameId: Guid.NewGuid().ToString(),
-        CorrelationId: Guid.NewGuid().ToString(),
-        Amount: 100.50m,
-        Currency: "BRL",
-        Method: PaymentMethod.Pix
-    );
-    var now = new DateTime(2025, 09, 02);
-    _clockMock.Setup(c => c.UtcNow).Returns(now);
-    _repoMock.Setup(r => 
-      r.AddAsync(It.IsAny<Payment>(), 
-      It.IsAny<CancellationToken>())
-    )
-      .Returns(Task.CompletedTask);
+        _commandFaker = new Faker<CreatePaymentCommand>()
+            .CustomInstantiator(f => new CreatePaymentCommand(
+                Guid.NewGuid(),
+                f.Random.Guid().ToString(),
+                f.Random.Guid().ToString(),
+                f.Random.Guid().ToString(),
+                f.Finance.Amount(),
+                f.Finance.Currency().Code,
+                f.PickRandom<PaymentMethod>()
+            ));
+    }
 
-    //new PaymentRequestedMessage(
-    //    It.IsAny<Guid>(), "", "", "", 0.0m, "", "", now, ""
-    //    ), CancellationToken.None
-    //  )
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Handle")]
+    [Fact]
+    public async Task Handle_ShouldReturnPaymentDto_WhenCommandIsValid()
+    {
+        // Arrange
+        var command = _commandFaker.Generate();
 
-    _publisherMock.Setup(p => p.PublishPaymentForProcessingAsync(
-      new PaymentRequestedMessage(
-        It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<string>(), now, It.IsAny<string>()
-        ), CancellationToken.None
-      ))
-      .Returns(Task.CompletedTask);
+        // Act
+        var result = await _handler.Handle(command, CancellationToken.None);
 
-    // Act
-    var result = await _handler.Handle(command, CancellationToken.None);
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().BeOfType<PaymentDto>();
+        result!.Amount.Should().Be(command.Amount);
+        result.Currency.Should().Be(command.Currency);
+        result.Method.Should().Be(command.Method);
+        result.UserId.Should().Be(command.UserId);
+        result.GameId.Should().Be(command.GameId);
+        result.CreatedAt.Should().Be(_now);
+    }
 
-    // Assert
-    Assert.NotNull(result);
-    Assert.IsType<PaymentDto>(result);
-    Assert.Equal(command.Amount, result.Amount);
-    _repoMock.Verify(r => r.AddAsync(
-        It.Is<Payment>(p => p.UserId == command.UserId && p.Value.Amount == command.Amount),
-        It.IsAny<CancellationToken>()), Times.Once);
-    _repoMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Handle")]
+    [Fact]
+    public async Task Handle_ShouldSavePayment_WhenCommandIsValid()
+    {
+        // Arrange
+        var command = _commandFaker.Generate();
 
-    _publisherMock.Verify(p => p.PublishPaymentForProcessingAsync(
-      It.Is<PaymentRequestedMessage>(m =>
-        m.PaymentId == result.Id &&
-        m.CorrelationId == command.CorrelationId &&
-        m.UserId == command.UserId &&
-        m.GameId == command.GameId &&
-        m.Amount == command.Amount &&
-        m.Currency == command.Currency &&
-        m.OccurredAt == now
-      ),
-      It.IsAny<CancellationToken>()),
-    Times.Once);
-  }
+        // Act
+        await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        _repoMock.Verify(r => r.AddAsync(
+            It.Is<Payment>(p =>
+                p.UserId == command.UserId &&
+                p.GameId == command.GameId &&
+                p.CorrelationId == command.CorrelationId &&
+                p.Value.Amount == command.Amount &&
+                p.Value.Currency == command.Currency &&
+                p.Method == command.Method &&
+                p.CreatedAt == _now),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _repoMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Trait("Category", "UnitTest")]
+    [Trait("Module", "Handle")]
+    [Fact]
+    public async Task Handle_ShouldPublishMessage_WhenCommandIsValid()
+    {
+        // Arrange
+        var command = _commandFaker.Generate();
+
+        // Act
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        _publisherMock.Verify(p => p.PublishPaymentForProcessingAsync(
+            It.Is<PaymentRequestedMessage>(m =>
+                m.PaymentId == result!.Id &&
+                m.CorrelationId == command.CorrelationId &&
+                m.UserId == command.UserId &&
+                m.GameId == command.GameId &&
+                m.Amount == command.Amount &&
+                m.Currency == command.Currency &&
+                m.Method == command.Method.ToString() &&
+                m.OccurredAt == _now),
+            It.IsAny<CancellationToken>()),
+        Times.Once);
+    }
 }
