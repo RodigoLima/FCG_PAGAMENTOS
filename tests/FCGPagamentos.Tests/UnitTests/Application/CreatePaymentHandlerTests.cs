@@ -102,7 +102,7 @@ public class CreatePaymentHandlerTests
                 m.GameId == command.GameId &&
                 m.Amount == command.Amount &&
                 m.Currency == command.Currency &&
-                m.Method == command.Method.ToString() &&
+                m.PaymentMethod == command.Method.ToString() &&
                 m.OccurredAt == _now),
             It.IsAny<CancellationToken>()),
         Times.Once);
