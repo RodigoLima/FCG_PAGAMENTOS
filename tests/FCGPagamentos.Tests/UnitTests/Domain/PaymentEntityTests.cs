@@ -26,7 +26,7 @@ public class PaymentEntityTests
         payment.Id.Should().NotBe(Guid.Empty);
         payment.Status.Should().Be(PaymentStatus.Pending);
         payment.Version.Should().Be(1);
-        payment.UncommittedEvents.Should().HaveCount(1);
+        payment.UncommittedEvents.Should().HaveCount(2);
         payment.UncommittedEvents.First().Should().BeOfType<PaymentCreated>();
     }
 
