@@ -18,7 +18,7 @@ public static class PaymentEndpoints
             IPaymentObservabilityService observability, HttpContext context, CancellationToken ct) =>
         {
             var stopwatch = Stopwatch.StartNew();
-            var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
             var paymentId = Guid.NewGuid();
             
             try
@@ -73,7 +73,7 @@ public static class PaymentEndpoints
         app.MapGet("/payments/{payment_id:guid}", async (Guid payment_id, GetPaymentHandler h, 
             IPaymentObservabilityService observability, HttpContext context, CancellationToken ct) =>
         {
-            var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
             
             try
             {
