@@ -155,15 +155,17 @@ public static class InternalEndpoints
                     request.OccurredAt
                 );
 
-                // Salva os eventos usando Event Sourcing
+                // Salva o pagamento primeiro
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync();
+                
+                // Depois salva os eventos usando Event Sourcing
                 foreach (var @event in payment.UncommittedEvents)
                 {
                     await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
                 }
                 
                 payment.MarkEventsAsCommitted();
-                db.Payments.Add(payment);
-                await db.SaveChangesAsync();
                 
                 stopwatch.Stop();
                 observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);
