@@ -120,7 +120,9 @@ public static class InternalEndpoints
             HttpRequest req, 
             IConfiguration cfg,
             IPaymentObservabilityService observability, 
-            HttpContext context) =>
+            IPaymentProcessingPublisher publisher,
+            HttpContext context,
+            CancellationToken ct) =>
         {
             var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId ?? Guid.NewGuid().ToString();
             var stopwatch = Stopwatch.StartNew();
@@ -166,6 +168,9 @@ public static class InternalEndpoints
                 }
                 
                 payment.MarkEventsAsCommitted();
+                
+                // Publicar na fila para processamento
+                await publisher.PublishPaymentForProcessingAsync(request, ct);
                 
                 stopwatch.Stop();
                 observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);
