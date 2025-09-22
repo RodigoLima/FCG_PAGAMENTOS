@@ -169,8 +169,20 @@ public static class InternalEndpoints
                 
                 payment.MarkEventsAsCommitted();
                 
+                // Criar mensagem com dados do banco (não da request)
+                var message = new PaymentRequestedMessage(
+                    payment.Id,
+                    payment.CorrelationId,
+                    payment.UserId,
+                    payment.GameId,
+                    payment.Value.Amount,
+                    payment.Value.Currency,
+                    payment.Method.ToString(),
+                    payment.CreatedAt
+                );
+                
                 // Publicar na fila para processamento
-                await publisher.PublishPaymentForProcessingAsync(request, ct);
+                await publisher.PublishPaymentForProcessingAsync(message, ct);
                 
                 stopwatch.Stop();
                 observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);
