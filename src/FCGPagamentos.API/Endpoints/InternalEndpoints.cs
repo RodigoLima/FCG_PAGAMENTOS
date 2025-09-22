@@ -23,7 +23,7 @@ public static class InternalEndpoints
         HttpContext context,
         Action<Payment> statusChangeAction)
     {
-        var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+        var correlationId = context.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
         var stopwatch = Stopwatch.StartNew();
         
         try
@@ -122,7 +122,7 @@ public static class InternalEndpoints
             IPaymentObservabilityService observability, 
             HttpContext context) =>
         {
-            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId;
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId ?? Guid.NewGuid().ToString();
             var stopwatch = Stopwatch.StartNew();
             
             try
@@ -149,7 +149,7 @@ public static class InternalEndpoints
                 var payment = new Payment(
                     request.UserId, 
                     request.GameId, 
-                    request.CorrelationId, 
+                    correlationId, 
                     money, 
                     paymentMethod, 
                     request.OccurredAt
