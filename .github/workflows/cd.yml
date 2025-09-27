@@ -1,4 +1,4 @@
-name: CD
+name: CD - Deploy FCG Payments API
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ env:
   ACR_NAME: acrfcgpayments               
   CONTAINER_APP_NAME: fcg-api-payments   
   ACA_ENVIRONMENT: aca-env-fcg-payments
+  IMAGE_NAME: ${{ env.ACR_NAME }}.azurecr.io/github-action/fcg-api-payments:${{ github.sha }}
 
 jobs:
   deploy:
@@ -24,19 +25,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (Service Principal)
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Build and Deploy Container App
-        uses: azure/container-apps-deploy-action@v1
+      - name: Build and Push Image (Oryx/Buildpacks)
+        run: |
+          # O comando 'az acr build' usa o buildpack Oryx para .NET e faz o push automaticamente
+          az acr build \
+            --registry ${{ env.ACR_NAME }} \
+            --image ${{ env.IMAGE_NAME }} \
+            --file ./Dockerfile.example \
+            --build-arg DOTNET_VERSION=8.0 \
+            --platform linux/amd64 \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --agent-pool Ubuntu \
+            .
+
+      - name: Deploy to Azure Container Apps (Final Step)
+        uses: azure/cli@v1
         with:
-          appSourcePath: . 
-          acrName: ${{ env.ACR_NAME }}
-          containerAppName: ${{ env.CONTAINER_APP_NAME }}
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          targetPort: 80
-          ingress: 'external'
-          registryIdentity: 'system' 
+          inlineScript: |
+            az containerapp update \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE_NAME }}
+          
