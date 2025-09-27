@@ -1,4 +1,4 @@
-name: CD
+name: CD to Azure Container Apps
 
 on:
   workflow_dispatch:
@@ -10,29 +10,34 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     permissions:
       id-token: write
       contents: read
 
     steps:
+      # Checkout do código
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Configurar o .NET
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
+      # Restaurar dependências
       - name: Restore dependencies
         run: dotnet restore ./src/FCGPagamentos.API/FCGPagamentos.API.csproj
 
+      # Build do projeto
       - name: Build project
         run: dotnet build ./src/FCGPagamentos.API/FCGPagamentos.API.csproj -c Release --no-restore
 
+      # Publicar a aplicação (gerar arquivos para o contêiner)
       - name: Publish application
         run: dotnet publish ./src/FCGPagamentos.API/FCGPagamentos.API.csproj -c Release -o ./out/api
 
+      # Fazer login no Azure
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -40,8 +45,26 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+      # Fazer login no Azure Container Registry (ACR)
+      - name: Login to Azure Container Registry
+        run: az acr login --name fcgcontainerregistry
+
+      # Construir a imagem Docker
+      - name: Build Docker Image
+        run: |
+          docker build -t fcgcontainerregistry.azurecr.io/api-fcg-payments:${{ github.sha }} .
+
+      # Publicar a imagem no ACR
+      - name: Push Docker Image to ACR
+        run: |
+          docker push fcgcontainerregistry.azurecr.io/api-fcg-payments:${{ github.sha }}
+
+      # Atualizar o Azure Container Apps
+      - name: Deploy to Azure Container Apps
+        uses: azure/cli@v1
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: ./out/api
+          inlineScript: |
+            az containerapp update \
+              --name api-fcg-payments-container \
+              --resource-group rg-fcg-payments \
+              --image fcgcontainerregistry.azurecr.io/api-fcg-payments:${{ github.sha }}
