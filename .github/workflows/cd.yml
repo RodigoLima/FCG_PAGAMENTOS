@@ -39,3 +39,4 @@ jobs:
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           targetPort: 80
           ingress: 'external'
+          registryIdentity: 'system' 
