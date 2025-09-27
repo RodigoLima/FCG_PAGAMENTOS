@@ -26,17 +26,12 @@ jobs:
         uses: actions/checkout@v4
 
       # 1. AUTENTICAÇÃO NO AZURE
-      # O Service Principal com AZURE_CREDENTIALS é usado para autenticar as chamadas à API da Azure.
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       # 2. BUILD E DEPLOY DEFINITIVO COM BUILD PACKS
-      # Esta action executa a containerização e o deploy.
-      # Nota: Ela usa o ACR_NAME para o push, mas o 'registryIdentity: system'
-      #       garante que o Container App puxe a imagem de volta usando a
-      #       Identidade Gerenciada (MSI) que configuramos no CLI.
       - name: Build and Deploy Container App (Buildpacks)
         uses: azure/container-apps-deploy-action@v1
         with:
@@ -47,10 +42,7 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          
-          # Solução para o erro de pull: forçar o uso da Identidade Gerenciada
+          imageToBuild: ${{ env.ACR_NAME }}.azurecr.io/${{ env.CONTAINER_APP_NAME }}:${{ github.sha }}
           registryIdentity: 'system' 
-          
-          # Configurações do container
           targetPort: 80
           ingress: 'external'
