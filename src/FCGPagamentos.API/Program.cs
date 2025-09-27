@@ -39,16 +39,23 @@ Console.WriteLine($"FCG Pagamentos API iniciando - Environment: {app.Environment
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
 
-// Swagger apenas em Development
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// Swagger apenas em Development
+// if (app.Environment.IsDevelopment())
+// {
+//     app.UseSwagger();
+//     app.UseSwaggerUI(c =>
+//     {
+//         c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+//         c.RoutePrefix = "swagger";
+//     });
+// }
 
 
 // Endpoint raiz

@@ -43,6 +43,5 @@ jobs:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
           imageToBuild: ${{ env.ACR_NAME }}.azurecr.io/${{ env.CONTAINER_APP_NAME }}:${{ github.sha }}
-          registryIdentity: 'system' 
           targetPort: 80
           ingress: 'external'
