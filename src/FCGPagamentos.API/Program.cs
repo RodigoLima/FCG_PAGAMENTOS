@@ -2,6 +2,10 @@ using FCGPagamentos.API.DI;
 using FCGPagamentos.API.Endpoints;
 using FCGPagamentos.API.Middleware;
 using FCGPagamentos.API.Services;
+using Grafana.OpenTelemetry;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,18 +49,13 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
     c.RoutePrefix = "swagger";
 });
+using var tracerProvider = Sdk.CreateTracerProviderBuilder()
+    .UseGrafana()
+    .Build();
 
-// Swagger apenas em Development
-// if (app.Environment.IsDevelopment())
-// {
-//     app.UseSwagger();
-//     app.UseSwaggerUI(c =>
-//     {
-//         c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
-//         c.RoutePrefix = "swagger";
-//     });
-// }
-
+using var meterProvider = Sdk.CreateMeterProviderBuilder()
+    .UseGrafana()
+    .Build();
 
 // Endpoint raiz
 app.MapGet("/", () => Results.Ok(new { 
