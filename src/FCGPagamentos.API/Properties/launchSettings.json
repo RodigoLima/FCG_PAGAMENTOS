@@ -16,7 +16,11 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5080",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=fcg-pagamentos-api,service.namespace=fcg-pagamentos,deployment.environment=development",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otlp-gateway-prod-sa-east-1.grafana.net/otlp",
+        "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic MTM4OTM4NjpnbGNfZXlKdklqb2lNVFUwTmpBNE5TSXNJbTRpT2lKbVkyY3RjR0ZuWVcxbGJuUnZjeTFuY21GbVlXNWhJaXdpYXlJNklubzBPRGxRUVRCNk1YTmlObU5CZVROWGJXTTNVVWN6TnlJc0ltMGlPbnNpY2lJNkluQnliMlF0YzJFdFpXRnpkQzB4SW4xOQ==",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"
       }
     },
     "https": {
