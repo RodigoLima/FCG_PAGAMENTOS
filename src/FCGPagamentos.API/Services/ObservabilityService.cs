@@ -1,10 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using OpenTelemetry;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
-using System.Diagnostics;
+using OpenTelemetry.Trace;
 
 namespace FCGPagamentos.API.Services;
 
@@ -12,15 +9,11 @@ public static class ObservabilityService
 {
     public static IServiceCollection AddObservability(this IServiceCollection services, IConfiguration configuration)
     {
-
-        
-        // Configura Application Insights
-        services.AddApplicationInsights(configuration);
-        
-        // Configura OpenTelemetry
-        services.AddOpenTelemetry(configuration);
-        
-        return services;
+      // Configura Application Insights
+      services.AddApplicationInsights(configuration);
+      // Configura OpenTelemetry
+      services.AddOpenTelemetry(configuration);
+      return services;
     }
 
     private static IServiceCollection AddApplicationInsights(this IServiceCollection services, IConfiguration configuration)
@@ -46,26 +39,27 @@ public static class ObservabilityService
         {
             services.AddApplicationInsightsTelemetry();
         }
-        
+
         return services;
     }
 
     private static IServiceCollection AddOpenTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        
-        services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0")
-                .AddAttributes(new Dictionary<string, object>
-                {
-                    ["deployment.environment"] = configuration.GetValue<string>("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
-                    ["service.instance.id"] = Environment.MachineName,
-                    ["service.version"] = "1.0.0"
-                }))
-            .WithTracing(tracing => ConfigureTracing(tracing, configuration))
-            .WithMetrics(metrics => ConfigureMetrics(metrics));
+      services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource
+          .AddService(serviceName: "FCGPagamentos.API", serviceVersion: "1.0.0")
+          .AddAttributes(new Dictionary<string, object>
+          {
+            ["deployment.environment"] = configuration.GetValue<string>("ASPNETCORE_ENVIRONMENT") ?? "Unknown",
+            ["service.instance.id"] = Environment.MachineName,
+            ["service.version"] = "1.0.0"
+          }))
+        .WithTracing(tracing => ConfigureTracing(tracing, configuration))
+        .WithMetrics(metrics => ConfigureMetrics(metrics))
+        .UseOtlpExporter()
+      ;
 
-        return services;
+      return services;
     }
 
     private static void ConfigureTracing(TracerProviderBuilder tracing, IConfiguration configuration)

@@ -51,11 +51,11 @@ using var meterProvider = Sdk.CreateMeterProviderBuilder()
     .UseGrafana()
     .Build();
 
-// Swagger apenas em Development
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
-    c.RoutePrefix = "swagger";
+  c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+  c.RoutePrefix = "swagger";
 });
 
 // Swagger apenas em Development
