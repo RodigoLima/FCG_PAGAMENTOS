@@ -23,7 +23,7 @@ public static class InternalEndpoints
         HttpContext context,
         Action<Payment> statusChangeAction)
     {
-        var correlationId = context.Items["CorrelationId"]?.ToString() ?? "unknown";
+        var correlationId = context.Items["CorrelationId"]?.ToString() ?? Guid.NewGuid().ToString();
         var stopwatch = Stopwatch.StartNew();
         
         try
@@ -120,9 +120,11 @@ public static class InternalEndpoints
             HttpRequest req, 
             IConfiguration cfg,
             IPaymentObservabilityService observability, 
-            HttpContext context) =>
+            IPaymentProcessingPublisher publisher,
+            HttpContext context,
+            CancellationToken ct) =>
         {
-            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId;
+            var correlationId = context.Items["CorrelationId"]?.ToString() ?? request.CorrelationId ?? Guid.NewGuid().ToString();
             var stopwatch = Stopwatch.StartNew();
             
             try
@@ -149,21 +151,38 @@ public static class InternalEndpoints
                 var payment = new Payment(
                     request.UserId, 
                     request.GameId, 
-                    request.CorrelationId, 
+                    correlationId, 
                     money, 
                     paymentMethod, 
                     request.OccurredAt
                 );
 
-                // Salva os eventos usando Event Sourcing
+                // Salva o pagamento primeiro
+                db.Payments.Add(payment);
+                await db.SaveChangesAsync();
+                
+                // Depois salva os eventos usando Event Sourcing
                 foreach (var @event in payment.UncommittedEvents)
                 {
                     await eventStore.AppendAsync(@event, @event.OccurredAt, CancellationToken.None);
                 }
                 
                 payment.MarkEventsAsCommitted();
-                db.Payments.Add(payment);
-                await db.SaveChangesAsync();
+                
+                // Criar mensagem com dados do banco (não da request)
+                var message = new PaymentRequestedMessage(
+                    payment.Id,
+                    payment.CorrelationId,
+                    payment.UserId,
+                    payment.GameId,
+                    payment.Value.Amount,
+                    payment.Value.Currency,
+                    payment.Method.ToString(),
+                    payment.CreatedAt
+                );
+                
+                // Publicar na fila para processamento
+                await publisher.PublishPaymentForProcessingAsync(message, ct);
                 
                 stopwatch.Stop();
                 observability.TrackPaymentSuccess(request.PaymentId, request.Amount, correlationId, stopwatch.Elapsed);

@@ -7,41 +7,41 @@ on:
     branches: [ "main" ]
     types: [completed]
 
+# Definições de variáveis de ambiente para serem usadas no job
+env:
+  RESOURCE_GROUP: rg-fcg-payments
+  ACR_NAME: acrfcgpayments               
+  CONTAINER_APP_NAME: fcg-api-payments   
+  ACA_ENVIRONMENT: aca-env-fcg-payments
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     permissions:
       id-token: write
       contents: read
-      
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-          
-      - name: Restore dependencies
-        run: dotnet restore ./src/FCGPagamentos.API/FCGPagamentos.API.csproj
-        
-      - name: Build project
-        run: dotnet build ./src/FCGPagamentos.API/FCGPagamentos.API.csproj -c Release --no-restore
-        
-      - name: Publish application
-        run: dotnet publish ./src/FCGPagamentos.API/FCGPagamentos.API.csproj -c Release -o ./out/api --no-build
-          
+
+      # 1. AUTENTICAÇÃO NO AZURE
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 2. BUILD E DEPLOY DEFINITIVO COM BUILD PACKS
+      - name: Build and Deploy Container App (Buildpacks)
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: . 
           
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          package: ./out/api
+          # Recursos de destino (usa as variáveis definidas no bloco 'env:')
+          acrName: ${{ env.ACR_NAME }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
+          imageToBuild: ${{ env.ACR_NAME }}.azurecr.io/${{ env.CONTAINER_APP_NAME }}:${{ github.sha }}
+          targetPort: 80
+          ingress: 'external'
