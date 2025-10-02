@@ -7,6 +7,7 @@ using FCGPagamentos.Domain.Entities;
 using FCGPagamentos.Application.DTOs;
 using FCGPagamentos.Domain.ValueObjects;
 using FCGPagamentos.Domain.Enums;
+using FCGPagamentos.API.Models;
 using System.Diagnostics;
 
 namespace FCGPagamentos.API.Endpoints;
@@ -114,7 +115,7 @@ public static class InternalEndpoints
 
         // Endpoint para receber eventos de outros microserviços para criar pagamentos
         app.MapPost("/internal/payments", async (
-            PaymentRequestedMessage request, 
+            InternalPaymentRequest request, 
             AppDbContext db, 
             IEventStore eventStore, 
             HttpRequest req, 
@@ -147,13 +148,12 @@ public static class InternalEndpoints
 
                 // Cria o pagamento
                 var money = new Money(request.Amount, request.Currency);
-                var paymentMethod = Enum.Parse<PaymentMethod>(request.PaymentMethod);
                 var payment = new Payment(
                     request.UserId, 
                     request.GameId, 
                     correlationId, 
                     money, 
-                    paymentMethod, 
+                    request.PaymentMethod, 
                     request.OccurredAt
                 );
 
