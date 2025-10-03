@@ -146,6 +146,9 @@ src/
 └── FCGPagamentos.Infrastructure/ # Implementações concretas
 ```
 
+(Diagrama de infraestrutura de interações entre os microserviços)[https://app.eraser.io/workspace/FL1eBvoidJ61nAJqevUF?origin=share]
+(Diagrama de sequência do sistema de pagamentos)[https://app.eraser.io/workspace/ERQIDF33Q9makIsNjacu?origin=share]
+
 ## 🔧 Desenvolvimento
 
 ### Adicionando novas funcionalidades
