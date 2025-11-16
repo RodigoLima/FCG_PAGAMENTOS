@@ -7,8 +7,11 @@ using FCGPagamentos.Infrastructure.Persistence.Repositories;
 using FCGPagamentos.Infrastructure.Queues;
 using FCGPagamentos.API.Services;
 using FluentValidation;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Amazon;
+using Amazon.SQS;
 
 namespace FCGPagamentos.API.DI;
 
@@ -36,35 +39,36 @@ public static class CompositionRoot
         s.AddScoped<GetPaymentHandler>();
         s.AddValidatorsFromAssemblyContaining<CreatePaymentValidator>();
 
-        // Publisher baseado no ambiente
-        var environment = cfg.GetValue<string>("ASPNETCORE_ENVIRONMENT") ?? "Production";
-        var isDevelopment = environment == "Development";
-        var useAzureEmulator = cfg.GetValue<bool>("AzureStorage:UseEmulator", false);
+        // Configuração do MassTransit com AWS SQS
+        var awsAccessKey = cfg["AWS:AccessKey"];
+        var awsSecretKey = cfg["AWS:SecretKey"];
+        var awsRegion = cfg["AWS:Region"] ?? "us-east-1";
         
-        if (isDevelopment && useAzureEmulator)
+        s.AddMassTransit(x =>
         {
-            s.AddScoped<IPaymentProcessingPublisher, MockPaymentPublisher>();
-        }
-        else
-        {
-            s.AddScoped<IPaymentProcessingPublisher, AzureQueuePaymentPublisher>();
-            s.AddScoped<AzureQueuePaymentPublisher>(); 
-        }
+            x.UsingAmazonSqs((context, cfg) =>
+            {
+                cfg.Host(awsRegion, h =>
+                {
+                    if (!string.IsNullOrEmpty(awsAccessKey) && !string.IsNullOrEmpty(awsSecretKey))
+                    {
+                        h.AccessKey(awsAccessKey);
+                        h.SecretKey(awsSecretKey);
+                    }
+                });
+            });
+        });
+
+        // Publisher
+        s.AddScoped<IPaymentProcessingPublisher, SqsPaymentPublisher>();
 
         // Serviços
         s.AddScoped<IPaymentObservabilityService, PaymentObservabilityService>();
         
         // Health checks
-        var healthChecks = s.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
-        
-        if (isDevelopment && useAzureEmulator)
-        {
-            healthChecks.AddCheck<MockQueueHealthCheck>("queue");
-        }
-        else
-        {
-            healthChecks.AddCheck<AzureQueueHealthCheck>("queue");
-        }
+        s.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database")
+            .AddCheck<SqsHealthCheck>("queue");
 
         return s;
     }

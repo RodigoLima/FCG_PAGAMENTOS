@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using FCGPagamentos.Infrastructure.Persistence;
 using FCGPagamentos.Infrastructure.Queues;
+using Amazon.SQS;
+using Amazon;
 
 namespace FCGPagamentos.API.Services;
 
@@ -27,28 +30,58 @@ public class DatabaseHealthCheck : IHealthCheck
     }
 }
 
-public class AzureQueueHealthCheck : IHealthCheck
+public class SqsHealthCheck : IHealthCheck
 {
-    private readonly AzureQueuePaymentPublisher _publisher;
+    private readonly IConfiguration _configuration;
 
-    public AzureQueueHealthCheck(AzureQueuePaymentPublisher publisher)
+    public SqsHealthCheck(IConfiguration configuration)
     {
-        _publisher = publisher;
+        _configuration = configuration;
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Verifica se o publisher está configurado corretamente
-            if (_publisher == null)
-                return Task.FromResult(HealthCheckResult.Unhealthy("Azure Queue publisher not configured"));
+            var accessKey = _configuration["AWS:AccessKey"];
+            var secretKey = _configuration["AWS:SecretKey"];
+            var region = _configuration["AWS:Region"] ?? "us-east-1";
+            var queueName = _configuration["AWS:SQS:QueueName"] ?? "payments-to-process";
+
+            if (string.IsNullOrEmpty(accessKey) || string.IsNullOrEmpty(secretKey))
+            {
+                return HealthCheckResult.Unhealthy("AWS credentials not configured");
+            }
+
+            var sqsClient = new AmazonSQSClient(accessKey, secretKey, RegionEndpoint.GetBySystemName(region));
             
-            return Task.FromResult(HealthCheckResult.Healthy("Azure Queue is accessible"));
+            // Tenta obter a URL da fila pelo nome
+            var accountId = _configuration["AWS:AccountId"];
+            string queueUrl;
+            
+            if (!string.IsNullOrEmpty(accountId))
+            {
+                queueUrl = $"https://sqs.{region}.amazonaws.com/{accountId}/{queueName}";
+            }
+            else
+            {
+                // Se não tiver AccountId, tenta obter a URL da fila pelo nome
+                var getQueueUrlResponse = await sqsClient.GetQueueUrlAsync(queueName, cancellationToken);
+                queueUrl = getQueueUrlResponse.QueueUrl;
+            }
+            
+            var response = await sqsClient.GetQueueAttributesAsync(queueUrl, new List<string> { "All" }, cancellationToken);
+            
+            if (response != null)
+            {
+                return HealthCheckResult.Healthy("AWS SQS queue is accessible");
+            }
+
+            return HealthCheckResult.Unhealthy("AWS SQS queue is not accessible");
         }
         catch (Exception ex)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy("Azure Queue is not accessible", ex));
+            return HealthCheckResult.Unhealthy("AWS SQS is not accessible", ex);
         }
     }
 }
