@@ -59,9 +59,9 @@ jobs:
           export FULL_IMAGE DB_VAL KEY_ID KEY_SECRET KEY_TOKEN ACC_ID
           
           if command -v envsubst >/dev/null 2>&1; then
-            envsubst < k8s/payments/configmap.yaml > k8s/payments/processed/configmap.yaml
-            envsubst < k8s/payments/secret.yaml > k8s/payments/processed/secret.yaml
-            envsubst < k8s/payments/deployment.yaml > k8s/payments/processed/deployment.yaml
+            envsubst < k8s/configmap.yaml > k8s/payments/processed/configmap.yaml
+            envsubst < k8s/secret.yaml > k8s/payments/processed/secret.yaml
+            envsubst < k8s/deployment.yaml > k8s/payments/processed/deployment.yaml
           else
             sed -e "s|\${FULL_IMAGE}|${FULL_IMAGE}|g" \
                 -e "s|\${DB_VAL}|${DB_VAL}|g" \
@@ -69,20 +69,20 @@ jobs:
                 -e "s|\${KEY_SECRET}|${KEY_SECRET}|g" \
                 -e "s|\${KEY_TOKEN}|${KEY_TOKEN}|g" \
                 -e "s|\${ACC_ID}|${ACC_ID}|g" \
-                k8s/payments/configmap.yaml > k8s/payments/processed/configmap.yaml
+                k8s/configmap.yaml > k8s/payments/processed/configmap.yaml
             sed -e "s|\${DB_VAL}|${DB_VAL}|g" \
                 -e "s|\${KEY_ID}|${KEY_ID}|g" \
                 -e "s|\${KEY_SECRET}|${KEY_SECRET}|g" \
                 -e "s|\${KEY_TOKEN}|${KEY_TOKEN}|g" \
-                k8s/payments/secret.yaml > k8s/payments/processed/secret.yaml
+                k8s/secret.yaml > k8s/payments/processed/secret.yaml
             sed -e "s|\${FULL_IMAGE}|${FULL_IMAGE}|g" \
-                k8s/payments/deployment.yaml > k8s/payments/processed/deployment.yaml
+                k8s/deployment.yaml > k8s/payments/processed/deployment.yaml
           fi
           
-          cp k8s/payments/service.yaml k8s/payments/processed/service.yaml
-          cp k8s/payments/hpa.yaml k8s/payments/processed/hpa.yaml
-          if [ -f k8s/payments/namespace.yaml ]; then
-            cp k8s/payments/namespace.yaml k8s/payments/processed/namespace.yaml
+          cp k8s/service.yaml k8s/payments/processed/service.yaml
+          cp k8s/hpa.yaml k8s/payments/processed/hpa.yaml
+          if [ -f k8s/namespace.yaml ]; then
+            cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
           fi
 
       # 5. Copiar arquivos K8s processados para a EC2
