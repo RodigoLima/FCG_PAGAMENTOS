@@ -6,11 +6,31 @@ public static class MetricsEndpoints
 {
     public static IEndpointRouteBuilder MapMetricsEndpoints(this IEndpointRouteBuilder app)
     {
-        // Health check básico
         app.MapGet("/health", async (HealthCheckService healthCheckService) =>
         {
             var report = await healthCheckService.CheckHealthAsync();
-            return Results.Ok(new { Status = report.Status.ToString() });
+            
+            var checks = new Dictionary<string, object>();
+            foreach (var entry in report.Entries)
+            {
+                checks[entry.Key] = new
+                {
+                    Status = entry.Value.Status.ToString(),
+                    Description = entry.Value.Description,
+                    Duration = entry.Value.Duration.TotalMilliseconds,
+                    Exception = entry.Value.Exception?.Message,
+                    Data = entry.Value.Data
+                };
+            }
+            
+            var statusCode = report.Status == HealthStatus.Healthy ? 200 : 503;
+            
+            return Results.Json(new
+            {
+                Status = report.Status.ToString(),
+                TotalDuration = report.TotalDuration.TotalMilliseconds,
+                Checks = checks
+            }, statusCode: statusCode);
         })
         .ExcludeFromDescription();
 
