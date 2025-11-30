@@ -4,8 +4,8 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'Payments/**'
-      - 'k8s/payments/**'
+      - 'src/**'
+      - 'k8s/**'
       - '.github/workflows/cd.yml'
   workflow_dispatch:
 
@@ -40,7 +40,6 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          cd Payments
           FULL_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker build -t $FULL_IMAGE .
           docker push $FULL_IMAGE
