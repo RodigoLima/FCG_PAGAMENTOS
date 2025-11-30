@@ -267,12 +267,6 @@ jobs:
       # 6. Deploy na EC2 via SSH
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_DEFAULT_REGION: us-east-1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
@@ -280,6 +274,16 @@ jobs:
           timeout: 600s
           script: |
             set -e
+            
+            ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+            AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+            AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            AWS_SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}"
+            AWS_DEFAULT_REGION="us-east-1"
+            AWS_REGION="us-east-1"
+            
+            export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION AWS_REGION
             
             echo "=== Configurando kubectl ==="
             if ! command -v kubectl &> /dev/null; then
@@ -313,20 +317,26 @@ jobs:
               echo "Namespace já existe ou erro ao criar"
             }
             echo "Aguardando namespace ficar ativo..."
-            kubectl wait --for=condition=Active namespace/payments --timeout=60s || {
-              echo "Aviso: Timeout aguardando namespace, mas continuando..."
+            sleep 3
+            kubectl get namespace payments || {
+              echo "Aviso: Namespace pode não estar pronto, mas continuando..."
             }
             
             echo "=== Criando ImagePullSecret para ECR ==="
             
             if [ -z "$ECR_REGISTRY" ]; then
-              echo "ERRO: ECR_REGISTRY não está definido"
-              exit 1
+              echo "ECR_REGISTRY não está definido, construindo a partir do AWS_ACCOUNT_ID..."
+              if [ -z "$AWS_ACCOUNT_ID" ]; then
+                echo "ERRO: Nem ECR_REGISTRY nem AWS_ACCOUNT_ID estão definidos"
+                exit 1
+              fi
+              ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+              echo "ECR_REGISTRY construído: $ECR_REGISTRY"
+            else
+              echo "ECR_REGISTRY: $ECR_REGISTRY"
             fi
             
-            echo "ECR_REGISTRY: $ECR_REGISTRY"
             ECR_REPOSITORY="payments-service"
-            AWS_REGION="us-east-1"
             
             if kubectl get secret ecr-secret -n payments &> /dev/null; then
               echo "ImagePullSecret já existe, atualizando..."
