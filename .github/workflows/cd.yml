@@ -118,6 +118,9 @@ jobs:
           if [ -f k8s/ingress.yaml ]; then
             cp k8s/ingress.yaml k8s/payments/processed/ingress.yaml
           fi
+          if [ -f k8s/middleware.yaml ]; then
+            cp k8s/middleware.yaml k8s/payments/processed/middleware.yaml
+          fi
           if [ -f k8s/namespace.yaml ]; then
             cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
           else
@@ -198,6 +201,9 @@ jobs:
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
+            if [ -f /home/ubuntu/deploy/k8s/payments/middleware.yaml ]; then
+              kubectl apply -f /home/ubuntu/deploy/k8s/payments/middleware.yaml
+            fi
             if [ -f /home/ubuntu/deploy/k8s/payments/ingress.yaml ]; then
               kubectl apply -f /home/ubuntu/deploy/k8s/payments/ingress.yaml
             fi

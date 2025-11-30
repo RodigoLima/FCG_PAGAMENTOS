@@ -8,6 +8,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: traefik
     traefik.ingress.kubernetes.io/rule-type: PathPrefix
+    traefik.ingress.kubernetes.io/router.middlewares: payments-strip-payments-prefix@kubernetescrd
 spec:
   rules:
   - http:
