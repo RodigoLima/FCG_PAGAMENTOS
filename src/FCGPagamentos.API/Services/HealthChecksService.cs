@@ -45,6 +45,7 @@ public class SqsHealthCheck : IHealthCheck
         {
             var accessKey = _configuration["AWS:AccessKey"];
             var secretKey = _configuration["AWS:SecretKey"];
+            var sessionToken = _configuration["AWS:SessionToken"];
             var region = _configuration["AWS:Region"] ?? "us-east-1";
             var queueName = _configuration["AWS:SQS:QueueName"] ?? "payments-to-process";
 
@@ -53,7 +54,15 @@ public class SqsHealthCheck : IHealthCheck
                 return HealthCheckResult.Unhealthy("AWS credentials not configured");
             }
 
-            var sqsClient = new AmazonSQSClient(accessKey, secretKey, RegionEndpoint.GetBySystemName(region));
+            AmazonSQSClient sqsClient;
+            if (!string.IsNullOrEmpty(sessionToken))
+            {
+                sqsClient = new AmazonSQSClient(accessKey, secretKey, sessionToken, RegionEndpoint.GetBySystemName(region));
+            }
+            else
+            {
+                sqsClient = new AmazonSQSClient(accessKey, secretKey, RegionEndpoint.GetBySystemName(region));
+            }
             
             // Tenta obter a URL da fila pelo nome
             var accountId = _configuration["AWS:AccountId"];

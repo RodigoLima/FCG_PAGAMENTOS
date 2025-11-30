@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payments-config
+  namespace: payments
+  labels:
+    app: payments
+data:
+  AWS__Region: "us-east-1"
+  AWS__AccountId: "${ACC_ID}"
+  AWS__SQS__QueueName: "payments-to-process"
+

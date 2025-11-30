@@ -1,47 +1,136 @@
-name: CD
+name: CD Payments (AWS K3s)
 
 on:
-  workflow_dispatch:
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [ "main" ]
-    types: [completed]
+    paths:
+      - 'Payments/**'
+      - 'k8s/payments/**'
+      - '.github/workflows/cd.yml'
+  workflow_dispatch:
 
-# Definições de variáveis de ambiente para serem usadas no job
 env:
-  RESOURCE_GROUP: rg-fcg-payments
-  ACR_NAME: acrfcgpayments               
-  CONTAINER_APP_NAME: fcg-api-payments   
-  ACA_ENVIRONMENT: aca-env-fcg-payments
+  ECR_REPOSITORY: payments-service
+  IMAGE_TAG: latest
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. AUTENTICAÇÃO NO AZURE
-      - name: Azure Login
-        uses: azure/login@v1
+      # 1. Login na AWS
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
 
-      # 2. BUILD E DEPLOY DEFINITIVO COM BUILD PACKS
-      - name: Build and Deploy Container App (Buildpacks)
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          appSourcePath: . 
+      # 2. Login no ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # 3. Build e Push
+      - name: Build and Push Docker Image
+        id: build-push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          cd Payments
+          FULL_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t $FULL_IMAGE .
+          docker push $FULL_IMAGE
+          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_OUTPUT
+
+      # 4. Substituir variáveis nos arquivos K8s
+      - name: Prepare K8s manifests
+        env:
+          FULL_IMAGE: ${{ steps.build-push.outputs.FULL_IMAGE }}
+          DB_VAL: ${{ secrets.PAYMENTS_DB_STRING }}
+          KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          KEY_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          KEY_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          ACC_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          mkdir -p k8s/payments/processed
+          export FULL_IMAGE DB_VAL KEY_ID KEY_SECRET KEY_TOKEN ACC_ID
           
-          # Recursos de destino (usa as variáveis definidas no bloco 'env:')
-          acrName: ${{ env.ACR_NAME }}
-          containerAppName: ${{ env.CONTAINER_APP_NAME }}
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppEnvironment: ${{ env.ACA_ENVIRONMENT }}
-          imageToBuild: ${{ env.ACR_NAME }}.azurecr.io/${{ env.CONTAINER_APP_NAME }}:${{ github.sha }}
-          targetPort: 80
-          ingress: 'external'
+          if command -v envsubst >/dev/null 2>&1; then
+            envsubst < k8s/payments/configmap.yaml > k8s/payments/processed/configmap.yaml
+            envsubst < k8s/payments/secret.yaml > k8s/payments/processed/secret.yaml
+            envsubst < k8s/payments/deployment.yaml > k8s/payments/processed/deployment.yaml
+          else
+            sed -e "s|\${FULL_IMAGE}|${FULL_IMAGE}|g" \
+                -e "s|\${DB_VAL}|${DB_VAL}|g" \
+                -e "s|\${KEY_ID}|${KEY_ID}|g" \
+                -e "s|\${KEY_SECRET}|${KEY_SECRET}|g" \
+                -e "s|\${KEY_TOKEN}|${KEY_TOKEN}|g" \
+                -e "s|\${ACC_ID}|${ACC_ID}|g" \
+                k8s/payments/configmap.yaml > k8s/payments/processed/configmap.yaml
+            sed -e "s|\${DB_VAL}|${DB_VAL}|g" \
+                -e "s|\${KEY_ID}|${KEY_ID}|g" \
+                -e "s|\${KEY_SECRET}|${KEY_SECRET}|g" \
+                -e "s|\${KEY_TOKEN}|${KEY_TOKEN}|g" \
+                k8s/payments/secret.yaml > k8s/payments/processed/secret.yaml
+            sed -e "s|\${FULL_IMAGE}|${FULL_IMAGE}|g" \
+                k8s/payments/deployment.yaml > k8s/payments/processed/deployment.yaml
+          fi
+          
+          cp k8s/payments/service.yaml k8s/payments/processed/service.yaml
+          cp k8s/payments/hpa.yaml k8s/payments/processed/hpa.yaml
+          if [ -f k8s/payments/namespace.yaml ]; then
+            cp k8s/payments/namespace.yaml k8s/payments/processed/namespace.yaml
+          fi
+
+      # 5. Copiar arquivos K8s processados para a EC2
+      - name: Copy K8s files to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "k8s/payments/processed/*"
+          target: "/home/ubuntu/deploy/k8s/payments"
+
+      # 6. Deploy na EC2 via SSH
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            
+            if [ -f /home/ubuntu/deploy/k8s/payments/namespace.yaml ]; then
+              echo "Aplicando Namespace..."
+              kubectl apply -f /home/ubuntu/deploy/k8s/payments/namespace.yaml
+            fi
+            
+            echo "Aplicando ConfigMap e Secret..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/configmap.yaml
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/secret.yaml
+            
+            echo "Aplicando Deployment..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml
+            
+            echo "Aplicando Service..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml
+            
+            echo "Aplicando HPA..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
+            
+            echo "Forçando atualização do deployment..."
+            kubectl rollout restart deployment/payments-deployment
+            
+            echo "Aguardando rollout completar..."
+            kubectl rollout status deployment/payments-deployment --timeout=300s
+            
+            echo "Verificando status do HPA..."
+            kubectl get hpa payments-hpa
+            
+            echo "Deploy concluído com sucesso!"

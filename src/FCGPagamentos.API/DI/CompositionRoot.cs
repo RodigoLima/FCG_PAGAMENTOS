@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Amazon;
 using Amazon.SQS;
+using Amazon.Runtime;
 
 namespace FCGPagamentos.API.DI;
 
@@ -42,6 +43,7 @@ public static class CompositionRoot
         // Configuração do MassTransit com AWS SQS
         var awsAccessKey = cfg["AWS:AccessKey"];
         var awsSecretKey = cfg["AWS:SecretKey"];
+        var awsSessionToken = cfg["AWS:SessionToken"];
         var awsRegion = cfg["AWS:Region"] ?? "us-east-1";
         
         s.AddMassTransit(x =>
@@ -52,8 +54,16 @@ public static class CompositionRoot
                 {
                     if (!string.IsNullOrEmpty(awsAccessKey) && !string.IsNullOrEmpty(awsSecretKey))
                     {
-                        h.AccessKey(awsAccessKey);
-                        h.SecretKey(awsSecretKey);
+                        if (!string.IsNullOrEmpty(awsSessionToken))
+                        {
+                            var credentials = new SessionAWSCredentials(awsAccessKey, awsSecretKey, awsSessionToken);
+                            h.Credentials(credentials);
+                        }
+                        else
+                        {
+                            h.AccessKey(awsAccessKey);
+                            h.SecretKey(awsSecretKey);
+                        }
                     }
                 });
             });
