@@ -18,10 +18,8 @@ WORKDIR "/src/src/FCGPagamentos.API"
 
 FROM build AS publish
 RUN dotnet publish "FCGPagamentos.API.csproj" -c Release -o /app/publish \
-    -r linux-musl-x64 \
     /p:UseAppHost=false \
-    /p:PublishTrimmed=true \
-    /p:TrimMode=partial
+    /p:SelfContained=false
 
 FROM base AS final
 WORKDIR /app
