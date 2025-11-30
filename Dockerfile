@@ -11,7 +11,7 @@ COPY ["src/FCGPagamentos.API/FCGPagamentos.API.csproj", "src/FCGPagamentos.API/"
 COPY ["src/FCGPagamentos.Application/FCGPagamentos.Application.csproj", "src/FCGPagamentos.Application/"]
 COPY ["src/FCGPagamentos.Domain/FCGPagamentos.Domain.csproj", "src/FCGPagamentos.Domain/"]
 COPY ["src/FCGPagamentos.Infrastructure/FCGPagamentos.Infrastructure.csproj", "src/FCGPagamentos.Infrastructure/"]
-RUN dotnet restore "src/FCGPagamentos.API/FCGPagamentos.API.csproj" --verbosity quiet
+RUN dotnet restore "src/FCGPagamentos.API/FCGPagamentos.API.csproj" --verbosity quiet -r linux-musl-x64
 
 COPY . .
 WORKDIR "/src/src/FCGPagamentos.API"
@@ -23,7 +23,8 @@ RUN dotnet publish "FCGPagamentos.API.csproj" -c Release -o /app/publish \
     --no-build \
     /p:UseAppHost=false \
     /p:PublishTrimmed=true \
-    /p:TrimMode=partial
+    /p:TrimMode=partial \
+    -r linux-musl-x64
 
 FROM base AS final
 WORKDIR /app
