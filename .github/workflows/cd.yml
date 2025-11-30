@@ -107,6 +107,12 @@ jobs:
           script: |
             set -e
             
+            mkdir -p ~/.kube
+            sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+            sudo chown ubuntu:ubuntu ~/.kube/config
+            chmod 600 ~/.kube/config
+            export KUBECONFIG=~/.kube/config
+            
             if [ -f /home/ubuntu/deploy/k8s/payments/namespace.yaml ]; then
               echo "Aplicando Namespace..."
               kubectl apply -f /home/ubuntu/deploy/k8s/payments/namespace.yaml
@@ -126,12 +132,12 @@ jobs:
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
             
             echo "Forçando atualização do deployment..."
-            kubectl rollout restart deployment/payments-deployment
+            kubectl rollout restart deployment/payments-deployment -n payments
             
             echo "Aguardando rollout completar..."
-            kubectl rollout status deployment/payments-deployment --timeout=300s
+            kubectl rollout status deployment/payments-deployment -n payments --timeout=300s
             
             echo "Verificando status do HPA..."
-            kubectl get hpa payments-hpa
+            kubectl get hpa payments-hpa -n payments
             
             echo "Deploy concluído com sucesso!"
