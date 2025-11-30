@@ -448,20 +448,41 @@ jobs:
             
             echo "=== Aguardando Deployment ficar pronto ==="
             echo "Aguardando pods iniciarem..."
-            sleep 5
+            sleep 10
             
-            echo "Forçando atualização do deployment..."
-            kubectl rollout restart deployment/payments-deployment -n payments || {
-              echo "Aviso: Falha ao reiniciar deployment (pode ser primeira vez)"
-            }
+            echo "Verificando se é primeira vez ou atualização..."
+            REPLICAS=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+            if [ "$REPLICAS" != "0" ]; then
+              echo "Deployment já existe, forçando atualização..."
+              kubectl rollout restart deployment/payments-deployment -n payments || {
+                echo "Aviso: Falha ao reiniciar deployment"
+              }
+            else
+              echo "Primeira vez criando deployment, aguardando pods iniciarem..."
+            fi
             
             echo "Aguardando rollout completar..."
             if ! kubectl rollout status deployment/payments-deployment -n payments --timeout=300s; then
               echo "ERRO: Rollout falhou ou timeout"
-              echo "Status dos pods:"
-              kubectl get pods -n payments
-              echo "Logs do deployment:"
+              echo ""
+              echo "=== Status dos pods ==="
+              kubectl get pods -n payments -o wide
+              echo ""
+              echo "=== Descrição do deployment ==="
               kubectl describe deployment payments-deployment -n payments
+              echo ""
+              echo "=== Logs dos pods (últimos 50 linhas) ==="
+              for pod in $(kubectl get pods -n payments -l app=payments -o jsonpath='{.items[*].metadata.name}'); do
+                echo "--- Logs do pod: $pod ---"
+                kubectl logs $pod -n payments --tail=50 || echo "Não foi possível obter logs do pod $pod"
+                echo ""
+                echo "--- Descrição do pod: $pod ---"
+                kubectl describe pod $pod -n payments | tail -30
+                echo ""
+              done
+              echo ""
+              echo "=== Eventos do namespace ==="
+              kubectl get events -n payments --sort-by='.lastTimestamp' | tail -20
               exit 1
             fi
             
@@ -471,7 +492,21 @@ jobs:
             
             if [ "$READY" != "$DESIRED" ]; then
               echo "ERRO: Deployment não está pronto. Ready: $READY, Desired: $DESIRED"
-              kubectl get pods -n payments
+              echo ""
+              echo "=== Status detalhado dos pods ==="
+              kubectl get pods -n payments -o wide
+              echo ""
+              echo "=== Logs dos pods com problemas ==="
+              for pod in $(kubectl get pods -n payments -l app=payments -o jsonpath='{.items[?(@.status.phase!="Running" || @.status.containerStatuses[0].ready==false)].metadata.name}'); do
+                if [ -n "$pod" ]; then
+                  echo "--- Logs do pod: $pod ---"
+                  kubectl logs $pod -n payments --tail=50 || echo "Não foi possível obter logs"
+                  echo ""
+                  echo "--- Descrição do pod: $pod ---"
+                  kubectl describe pod $pod -n payments | tail -30
+                  echo ""
+                fi
+              done
               kubectl describe deployment payments-deployment -n payments
               exit 1
             fi
