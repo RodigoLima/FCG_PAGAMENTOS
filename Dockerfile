@@ -15,16 +15,13 @@ RUN dotnet restore "src/FCGPagamentos.API/FCGPagamentos.API.csproj" --verbosity 
 
 COPY . .
 WORKDIR "/src/src/FCGPagamentos.API"
-RUN dotnet build "FCGPagamentos.API.csproj" -c Release -o /app/build --no-restore
 
 FROM build AS publish
 RUN dotnet publish "FCGPagamentos.API.csproj" -c Release -o /app/publish \
-    --no-restore \
-    --no-build \
+    -r linux-musl-x64 \
     /p:UseAppHost=false \
     /p:PublishTrimmed=true \
-    /p:TrimMode=partial \
-    -r linux-musl-x64
+    /p:TrimMode=partial
 
 FROM base AS final
 WORKDIR /app
