@@ -170,6 +170,14 @@ jobs:
             rm -f /home/ubuntu/deploy/k8s/payments/*.yaml || true
             echo "Diretório preparado: /home/ubuntu/deploy/k8s/payments"
 
+      - name: List files before copy
+        run: |
+          echo "Arquivos a serem copiados:"
+          ls -la k8s/payments/processed/ || echo "Diretório não existe"
+          if [ -d "k8s/payments/processed" ]; then
+            find k8s/payments/processed -name "*.yaml" -type f
+          fi
+
       - name: Copy K8s files to EC2
         uses: appleboy/scp-action@master
         with:
@@ -177,8 +185,33 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           timeout: 120s
-          source: "k8s/payments/processed/*.yaml"
-          target: "/home/ubuntu/deploy/k8s/payments"
+          source: "k8s/payments/processed/"
+          target: "/home/ubuntu/deploy/temp"
+          rm: false
+          
+      - name: Move files to correct location
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 60s
+          script: |
+            set -e
+            echo "Movendo arquivos para localização correta..."
+            if [ -d "/home/ubuntu/deploy/temp/payments/processed" ]; then
+              mv /home/ubuntu/deploy/temp/payments/processed/*.yaml /home/ubuntu/deploy/k8s/payments/ 2>/dev/null || true
+              rm -rf /home/ubuntu/deploy/temp
+            elif [ -d "/home/ubuntu/deploy/temp/processed" ]; then
+              mv /home/ubuntu/deploy/temp/processed/*.yaml /home/ubuntu/deploy/k8s/payments/ 2>/dev/null || true
+              rm -rf /home/ubuntu/deploy/temp
+            else
+              echo "Procurando arquivos YAML em /home/ubuntu/deploy/temp..."
+              find /home/ubuntu/deploy/temp -name "*.yaml" -exec mv {} /home/ubuntu/deploy/k8s/payments/ \; 2>/dev/null || true
+              rm -rf /home/ubuntu/deploy/temp
+            fi
+            echo "Arquivos movidos. Conteúdo final:"
+            ls -la /home/ubuntu/deploy/k8s/payments/
           
       - name: Verify files copied to EC2
         uses: appleboy/ssh-action@master
@@ -189,11 +222,24 @@ jobs:
           timeout: 60s
           script: |
             set -e
-            echo "Verificando arquivos copiados..."
+            echo "Verificando estrutura copiada..."
+            echo "Conteúdo de /home/ubuntu/deploy/k8s:"
+            ls -la /home/ubuntu/deploy/k8s/ || echo "Diretório k8s não existe"
+            echo ""
+            echo "Buscando todos os arquivos YAML:"
+            find /home/ubuntu/deploy -type f -name "*.yaml" 2>/dev/null || echo "Nenhum arquivo YAML encontrado"
+            echo ""
+            
+            echo "Verificando diretório payments..."
             if [ ! -d "/home/ubuntu/deploy/k8s/payments" ]; then
-              echo "ERRO: Diretório não existe"
-              exit 1
+              echo "ERRO: Diretório /home/ubuntu/deploy/k8s/payments não existe"
+              echo "Criando diretório..."
+              mkdir -p /home/ubuntu/deploy/k8s/payments
             fi
+            
+            echo "Conteúdo de /home/ubuntu/deploy/k8s/payments:"
+            ls -la /home/ubuntu/deploy/k8s/payments/ || echo "Diretório vazio ou não existe"
+            echo ""
             
             REQUIRED_FILES=("configmap.yaml" "secret.yaml" "deployment.yaml" "service.yaml" "hpa.yaml")
             MISSING_FILES=()
@@ -206,8 +252,12 @@ jobs:
             
             if [ ${#MISSING_FILES[@]} -ne 0 ]; then
               echo "ERRO: Arquivos não encontrados: ${MISSING_FILES[*]}"
-              echo "Arquivos presentes:"
-              ls -la /home/ubuntu/deploy/k8s/payments/
+              echo ""
+              echo "Tentando encontrar arquivos em outras localizações..."
+              find /home/ubuntu/deploy -name "configmap.yaml" -o -name "secret.yaml" -o -name "deployment.yaml" -o -name "service.yaml" -o -name "hpa.yaml" 2>/dev/null || true
+              echo ""
+              echo "Estrutura completa:"
+              find /home/ubuntu/deploy -type f 2>/dev/null || true
               exit 1
             fi
             
