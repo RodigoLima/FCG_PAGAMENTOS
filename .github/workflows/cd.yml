@@ -40,10 +40,29 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
+          set -e
+          
+          if [ -z "$ECR_REGISTRY" ]; then
+            echo "ERRO: ECR_REGISTRY não está definido"
+            exit 1
+          fi
+          
           FULL_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "Building image: $FULL_IMAGE"
+          
           docker build -t $FULL_IMAGE .
+          
+          echo "Pushing image to ECR..."
           docker push $FULL_IMAGE
+          
+          echo "Verificando se imagem foi criada..."
+          aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --region us-east-1 || {
+            echo "ERRO: Imagem não encontrada no ECR após push"
+            exit 1
+          }
+          
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_OUTPUT
+          echo "Image $FULL_IMAGE pushed successfully"
 
       # 4. Substituir variáveis nos arquivos K8s
       - name: Prepare K8s manifests
@@ -55,9 +74,30 @@ jobs:
           KEY_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           ACC_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: |
+          set -e
+          
+          echo "Validando variáveis obrigatórias..."
+          if [ -z "$FULL_IMAGE" ]; then
+            echo "ERRO: FULL_IMAGE não está definido"
+            exit 1
+          fi
+          if [ -z "$DB_VAL" ]; then
+            echo "ERRO: DB_VAL não está definido"
+            exit 1
+          fi
+          if [ -z "$KEY_ID" ] || [ -z "$KEY_SECRET" ] || [ -z "$KEY_TOKEN" ]; then
+            echo "ERRO: Credenciais AWS não estão definidas"
+            exit 1
+          fi
+          if [ -z "$ACC_ID" ]; then
+            echo "ERRO: ACC_ID não está definido"
+            exit 1
+          fi
+          
           mkdir -p k8s/payments/processed
           export FULL_IMAGE DB_VAL KEY_ID KEY_SECRET KEY_TOKEN ACC_ID
           
+          echo "Processando arquivos YAML..."
           if command -v envsubst >/dev/null 2>&1; then
             envsubst < k8s/configmap.yaml > k8s/payments/processed/configmap.yaml
             envsubst < k8s/secret.yaml > k8s/payments/processed/secret.yaml
@@ -83,21 +123,41 @@ jobs:
           cp k8s/hpa.yaml k8s/payments/processed/hpa.yaml
           if [ -f k8s/namespace.yaml ]; then
             cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
+          else
+            echo "Aviso: namespace.yaml não encontrado, será criado automaticamente"
           fi
+          
+          echo "Validando YAML gerado..."
+          for file in k8s/payments/processed/*.yaml; do
+            if [ -f "$file" ]; then
+              echo "Validando $file..."
+              if ! grep -q "apiVersion" "$file"; then
+                echo "ERRO: $file não parece ser um YAML válido"
+                exit 1
+              fi
+              if grep -q '\${' "$file"; then
+                echo "ERRO: Variáveis não substituídas em $file:"
+                grep '\${' "$file"
+                exit 1
+              fi
+            fi
+          done
+          
+          echo "Arquivos gerados:"
+          ls -la k8s/payments/processed/
+          
+          REQUIRED_FILES=("configmap.yaml" "secret.yaml" "deployment.yaml" "service.yaml" "hpa.yaml")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "k8s/payments/processed/$file" ]; then
+              echo "ERRO: Arquivo obrigatório não encontrado: $file"
+              exit 1
+            fi
+          done
+          
+          echo "Todos os arquivos YAML foram gerados e validados com sucesso"
 
-      # 5. Copiar arquivos K8s processados para a EC2
-      - name: Copy K8s files to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 60s
-          source: "k8s/payments/processed/*"
-          target: "/home/ubuntu/deploy/k8s/payments"
-
-      # 6. Deploy na EC2 via SSH
-      - name: Deploy via SSH
+      # 5. Criar diretório e copiar arquivos K8s processados para a EC2
+      - name: Prepare directory on EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -106,38 +166,220 @@ jobs:
           timeout: 60s
           script: |
             set -e
+            mkdir -p /home/ubuntu/deploy/k8s/payments
+            rm -f /home/ubuntu/deploy/k8s/payments/*.yaml || true
+            echo "Diretório preparado: /home/ubuntu/deploy/k8s/payments"
+
+      - name: Copy K8s files to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 120s
+          source: "k8s/payments/processed/*.yaml"
+          target: "/home/ubuntu/deploy/k8s/payments"
+          
+      - name: Verify files copied to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 60s
+          script: |
+            set -e
+            echo "Verificando arquivos copiados..."
+            if [ ! -d "/home/ubuntu/deploy/k8s/payments" ]; then
+              echo "ERRO: Diretório não existe"
+              exit 1
+            fi
+            
+            REQUIRED_FILES=("configmap.yaml" "secret.yaml" "deployment.yaml" "service.yaml" "hpa.yaml")
+            MISSING_FILES=()
+            
+            for file in "${REQUIRED_FILES[@]}"; do
+              if [ ! -f "/home/ubuntu/deploy/k8s/payments/$file" ]; then
+                MISSING_FILES+=("$file")
+              fi
+            done
+            
+            if [ ${#MISSING_FILES[@]} -ne 0 ]; then
+              echo "ERRO: Arquivos não encontrados: ${MISSING_FILES[*]}"
+              echo "Arquivos presentes:"
+              ls -la /home/ubuntu/deploy/k8s/payments/
+              exit 1
+            fi
+            
+            echo "Todos os arquivos foram copiados com sucesso:"
+            ls -la /home/ubuntu/deploy/k8s/payments/
+
+      # 6. Deploy na EC2 via SSH
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: us-east-1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 600s
+          script: |
+            set -e
+            
+            echo "=== Configurando kubectl ==="
+            if ! command -v kubectl &> /dev/null; then
+              echo "ERRO: kubectl não está instalado"
+              exit 1
+            fi
             
             mkdir -p ~/.kube
+            if [ ! -f /etc/rancher/k3s/k3s.yaml ]; then
+              echo "ERRO: Arquivo k3s.yaml não encontrado em /etc/rancher/k3s/"
+              exit 1
+            fi
+            
             sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
             sudo chown ubuntu:ubuntu ~/.kube/config
             chmod 600 ~/.kube/config
             export KUBECONFIG=~/.kube/config
+            
+            echo "Verificando conectividade com cluster..."
+            if ! kubectl cluster-info &> /dev/null; then
+              echo "ERRO: Não foi possível conectar ao cluster"
+              exit 1
+            fi
+            kubectl get nodes || {
+              echo "ERRO: Não foi possível listar nodes"
+              exit 1
+            }
+            
+            echo "=== Criando/Criando Namespace ==="
+            kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f - || {
+              echo "Namespace já existe ou erro ao criar"
+            }
+            kubectl wait --for=condition=Active namespace/payments --timeout=30s || true
+            
+            echo "=== Criando ImagePullSecret para ECR ==="
+            ECR_REPOSITORY="payments-service"
+            AWS_REGION="us-east-1"
+            
+            if kubectl get secret ecr-secret -n payments &> /dev/null; then
+              echo "ImagePullSecret já existe, atualizando..."
+              kubectl delete secret ecr-secret -n payments || true
+            fi
+            
+            export AWS_DEFAULT_REGION=$AWS_REGION
+            
+            if ! command -v aws &> /dev/null; then
+              echo "Aviso: AWS CLI não está instalado, pulando ImagePullSecret"
+              echo "Certifique-se de que o ImagePullSecret já existe ou será criado manualmente"
+            else
+              TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
+              kubectl create secret docker-registry ecr-secret \
+                --docker-server=$ECR_REGISTRY \
+                --docker-username=AWS \
+                --docker-password=$TOKEN \
+                --namespace=payments || {
+                echo "ERRO: Falha ao criar ImagePullSecret"
+                exit 1
+              }
+              echo "ImagePullSecret criado com sucesso"
+            fi
+            
+            echo "=== Validando arquivos YAML ==="
+            for file in /home/ubuntu/deploy/k8s/payments/*.yaml; do
+              if [ -f "$file" ]; then
+                echo "Validando $file..."
+                kubectl apply --dry-run=client -f "$file" || {
+                  echo "ERRO: YAML inválido: $file"
+                  exit 1
+                }
+              fi
+            done
+            
+            echo "=== Aplicando recursos ==="
             
             if [ -f /home/ubuntu/deploy/k8s/payments/namespace.yaml ]; then
               echo "Aplicando Namespace..."
               kubectl apply -f /home/ubuntu/deploy/k8s/payments/namespace.yaml
             fi
             
-            echo "Aplicando ConfigMap e Secret..."
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/configmap.yaml
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/secret.yaml
+            echo "Aplicando ConfigMap..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/configmap.yaml || {
+              echo "ERRO: Falha ao aplicar ConfigMap"
+              exit 1
+            }
+            
+            echo "Aplicando Secret..."
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/secret.yaml || {
+              echo "ERRO: Falha ao aplicar Secret"
+              exit 1
+            }
+            
+            echo "Aguardando ConfigMap e Secret ficarem prontos..."
+            sleep 2
             
             echo "Aplicando Deployment..."
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml || {
+              echo "ERRO: Falha ao aplicar Deployment"
+              exit 1
+            }
             
             echo "Aplicando Service..."
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml || {
+              echo "ERRO: Falha ao aplicar Service"
+              exit 1
+            }
             
             echo "Aplicando HPA..."
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
+            kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml || {
+              echo "ERRO: Falha ao aplicar HPA"
+              exit 1
+            }
+            
+            echo "=== Aguardando Deployment ficar pronto ==="
+            echo "Aguardando pods iniciarem..."
+            sleep 5
             
             echo "Forçando atualização do deployment..."
-            kubectl rollout restart deployment/payments-deployment -n payments
+            kubectl rollout restart deployment/payments-deployment -n payments || {
+              echo "Aviso: Falha ao reiniciar deployment (pode ser primeira vez)"
+            }
             
             echo "Aguardando rollout completar..."
-            kubectl rollout status deployment/payments-deployment -n payments --timeout=300s
+            if ! kubectl rollout status deployment/payments-deployment -n payments --timeout=300s; then
+              echo "ERRO: Rollout falhou ou timeout"
+              echo "Status dos pods:"
+              kubectl get pods -n payments
+              echo "Logs do deployment:"
+              kubectl describe deployment payments-deployment -n payments
+              exit 1
+            fi
             
-            echo "Verificando status do HPA..."
-            kubectl get hpa payments-hpa -n payments
+            echo "=== Verificando saúde do deployment ==="
+            READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' || echo "0")
+            DESIRED=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.replicas}' || echo "0")
             
+            if [ "$READY" != "$DESIRED" ]; then
+              echo "ERRO: Deployment não está pronto. Ready: $READY, Desired: $DESIRED"
+              kubectl get pods -n payments
+              kubectl describe deployment payments-deployment -n payments
+              exit 1
+            fi
+            
+            echo "=== Status final ==="
+            echo "Pods:"
+            kubectl get pods -n payments
+            echo ""
+            echo "Service:"
+            kubectl get service payments-service -n payments
+            echo ""
+            echo "HPA:"
+            kubectl get hpa payments-hpa -n payments || echo "HPA ainda não está disponível"
+            echo ""
             echo "Deploy concluído com sucesso!"
