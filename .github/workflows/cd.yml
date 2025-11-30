@@ -312,9 +312,19 @@ jobs:
             kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f - || {
               echo "Namespace já existe ou erro ao criar"
             }
-            kubectl wait --for=condition=Active namespace/payments --timeout=30s || true
+            echo "Aguardando namespace ficar ativo..."
+            kubectl wait --for=condition=Active namespace/payments --timeout=60s || {
+              echo "Aviso: Timeout aguardando namespace, mas continuando..."
+            }
             
             echo "=== Criando ImagePullSecret para ECR ==="
+            
+            if [ -z "$ECR_REGISTRY" ]; then
+              echo "ERRO: ECR_REGISTRY não está definido"
+              exit 1
+            fi
+            
+            echo "ECR_REGISTRY: $ECR_REGISTRY"
             ECR_REPOSITORY="payments-service"
             AWS_REGION="us-east-1"
             
@@ -323,23 +333,57 @@ jobs:
               kubectl delete secret ecr-secret -n payments || true
             fi
             
-            export AWS_DEFAULT_REGION=$AWS_REGION
-            
             if ! command -v aws &> /dev/null; then
-              echo "Aviso: AWS CLI não está instalado, pulando ImagePullSecret"
-              echo "Certifique-se de que o ImagePullSecret já existe ou será criado manualmente"
-            else
-              TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
-              kubectl create secret docker-registry ecr-secret \
-                --docker-server=$ECR_REGISTRY \
-                --docker-username=AWS \
-                --docker-password=$TOKEN \
-                --namespace=payments || {
-                echo "ERRO: Falha ao criar ImagePullSecret"
+              echo "ERRO: AWS CLI não está instalado na EC2"
+              echo "Instalando AWS CLI..."
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" || {
+                echo "ERRO: Falha ao baixar AWS CLI"
                 exit 1
               }
-              echo "ImagePullSecret criado com sucesso"
+              unzip awscliv2.zip || {
+                echo "ERRO: Falha ao descompactar AWS CLI"
+                exit 1
+              }
+              sudo ./aws/install || {
+                echo "ERRO: Falha ao instalar AWS CLI"
+                exit 1
+              }
+              rm -rf awscliv2.zip aws
             fi
+            
+            echo "Configurando credenciais AWS..."
+            export AWS_DEFAULT_REGION=$AWS_REGION
+            export AWS_REGION=$AWS_REGION
+            
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+              echo "ERRO: Credenciais AWS não estão definidas"
+              exit 1
+            fi
+            
+            echo "Obtendo token do ECR..."
+            TOKEN=$(aws ecr get-login-password --region $AWS_REGION 2>&1) || {
+              echo "ERRO: Falha ao obter token do ECR"
+              echo "Verifique as credenciais AWS e permissões"
+              exit 1
+            }
+            
+            if [ -z "$TOKEN" ]; then
+              echo "ERRO: Token do ECR está vazio"
+              exit 1
+            fi
+            
+            echo "Criando ImagePullSecret..."
+            kubectl create secret docker-registry ecr-secret \
+              --docker-server="$ECR_REGISTRY" \
+              --docker-username=AWS \
+              --docker-password="$TOKEN" \
+              --namespace=payments || {
+              echo "ERRO: Falha ao criar ImagePullSecret"
+              echo "ECR_REGISTRY: $ECR_REGISTRY"
+              echo "Token length: ${#TOKEN}"
+              exit 1
+            }
+            echo "ImagePullSecret criado com sucesso"
             
             echo "=== Validando arquivos YAML ==="
             for file in /home/ubuntu/deploy/k8s/payments/*.yaml; do
