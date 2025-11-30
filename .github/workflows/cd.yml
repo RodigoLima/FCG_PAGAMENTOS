@@ -115,6 +115,9 @@ jobs:
           
           cp k8s/service.yaml k8s/payments/processed/service.yaml
           cp k8s/hpa.yaml k8s/payments/processed/hpa.yaml
+          if [ -f k8s/ingress.yaml ]; then
+            cp k8s/ingress.yaml k8s/payments/processed/ingress.yaml
+          fi
           if [ -f k8s/namespace.yaml ]; then
             cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
           else
@@ -195,6 +198,9 @@ jobs:
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml
             kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
+            if [ -f /home/ubuntu/deploy/k8s/payments/ingress.yaml ]; then
+              kubectl apply -f /home/ubuntu/deploy/k8s/payments/ingress.yaml
+            fi
             
             if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
               READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
