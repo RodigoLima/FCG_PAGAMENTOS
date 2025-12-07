@@ -6,7 +6,7 @@ metadata:
   labels:
     app: payments
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: payments-stripprefix@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: payments-payments-stripprefix@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:

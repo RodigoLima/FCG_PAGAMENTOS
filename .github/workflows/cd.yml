@@ -194,6 +194,8 @@ jobs:
               --set service.type=ClusterIP \
               --set ports.web.port=80 \
               --set ports.websecure.port=443 \
+              --set additionalArguments[0]=--api.dashboard=false \
+              --set additionalArguments[1]=--api.insecure=false \
               --wait \
               --timeout 5m || {
                 echo "⚠️  Erro ao instalar Traefik. Verificando status..."
@@ -319,11 +321,14 @@ jobs:
           fi
           
           if [ -f k8s/payments/processed/traefik-service.yaml ]; then
-            echo "🔄 Deletando Traefik Service existente (se houver)..."
-            kubectl delete svc traefik-loadbalancer -n kube-system --ignore-not-found=true
+            echo "🔍 Verificando se o Traefik Service já existe..."
+            EXISTING_SVC=$(kubectl get svc traefik-loadbalancer -n kube-system 2>/dev/null || echo "")
             
-            echo "⏳ Aguardando 10 segundos para limpeza..."
-            sleep 10
+            if [ -n "$EXISTING_SVC" ]; then
+              echo "✅ Traefik Service já existe. Atualizando sem deletar para preservar o Load Balancer..."
+            else
+              echo "📦 Traefik Service não existe. Criando novo..."
+            fi
             
             echo "🔍 Verificando se os pods do Traefik estão disponíveis..."
             TRAEFIK_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
@@ -551,3 +556,43 @@ jobs:
           echo ""
           echo "=== 5. STATUS DO MIDDLEWARE ==="
           kubectl get middleware -n payments 2>/dev/null || echo "Middleware não encontrado ou CRD não instalado"
+          if kubectl get middleware payments-stripprefix -n payments >/dev/null 2>&1; then
+            echo "✅ Middleware payments-stripprefix encontrado:"
+            kubectl get middleware payments-stripprefix -n payments -o yaml
+          else
+            echo "❌ Middleware payments-stripprefix NÃO encontrado!"
+          fi
+          
+          echo ""
+          echo "=== 6. VERIFICAÇÃO DO INGRESS ==="
+          INGRESS=$(kubectl get ingress payments-ingress -n payments 2>/dev/null || echo "")
+          if [ -n "$INGRESS" ]; then
+            echo "✅ Ingress encontrado:"
+            kubectl get ingress payments-ingress -n payments
+            echo ""
+            echo "Detalhes do Ingress:"
+            kubectl describe ingress payments-ingress -n payments
+          else
+            echo "❌ Ingress não encontrado!"
+          fi
+          
+          echo ""
+          echo "=== 7. TESTE DE CONECTIVIDADE ==="
+          echo "Verificando se os pods do payments-service estão prontos..."
+          kubectl get pods -n payments -l app=payments
+          
+          echo ""
+          echo "Testando conectividade direta no service (port-forward)..."
+          echo "Para testar manualmente:"
+          echo "  kubectl port-forward -n payments svc/payments-service 8080:80"
+          echo "  curl http://localhost:8080/"
+          
+          echo ""
+          echo "=== 8. LOGS DO TRAEFIK (últimas 20 linhas) ==="
+          TRAEFIK_POD=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          if [ -n "$TRAEFIK_POD" ]; then
+            echo "Logs do pod Traefik: $TRAEFIK_POD"
+            kubectl logs -n kube-system $TRAEFIK_POD --tail=20 | grep -i "payments\|ingress\|middleware" || echo "Nenhum log relevante encontrado"
+          else
+            echo "⚠️  Pod do Traefik não encontrado"
+          fi
