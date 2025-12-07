@@ -30,6 +30,8 @@ Deployment do serviço com:
 ### `service.yaml`
 Service do tipo ClusterIP para expor o deployment internamente.
 
+**Importante:** O Service deve permanecer como `ClusterIP` (não altere para `LoadBalancer`). O Load Balancer (ALB) é criado automaticamente pelo AWS Load Balancer Controller através do Ingress. Esta é a prática recomendada para EKS.
+
 ### `hpa.yaml`
 Horizontal Pod Autoscaler configurado para:
 - Escalar de 1 a 5 réplicas
@@ -47,9 +49,41 @@ Ingress usando AWS Load Balancer Controller (ALB):
 - Timeout de idle configurado para 60 segundos
 
 **Integração com API Gateway:**
-O ALB criado por este ingress pode ser usado como backend do API Gateway. Após o deploy, obtenha o DNS do ALB com:
+O ALB criado por este ingress pode ser usado como backend do API Gateway. 
+
+**Importante:** O Service está configurado como `ClusterIP` (interno), o que é a prática recomendada. O Load Balancer (ALB) é criado automaticamente pelo AWS Load Balancer Controller quando o Ingress é aplicado. Não é necessário alterar o Service para LoadBalancer.
+
+**Verificando se o ALB foi criado:**
+
+1. **Via kubectl (recomendado):**
 ```bash
+# Verificar status do Ingress e obter o DNS do ALB
+kubectl get ingress payments-ingress -n payments
+
+# Obter apenas o DNS
 kubectl get ingress payments-ingress -n payments -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Verificar detalhes completos
+kubectl describe ingress payments-ingress -n payments
+```
+
+2. **Via Console AWS:**
+- Acesse: EC2 → Load Balancers
+- Procure por um ALB com nome começando com `k8s-fcgservices-` ou similar
+- O ALB terá as tags: `Environment=production`, `Service=fcg-services`, `ManagedBy=k8s`
+
+**Se o ALB não aparecer:**
+- Verifique se o AWS Load Balancer Controller está instalado e rodando:
+```bash
+kubectl get pods -n kube-system | grep aws-load-balancer-controller
+```
+- Verifique os logs do controller:
+```bash
+kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+```
+- Verifique se o Ingress foi aplicado corretamente:
+```bash
+kubectl get ingress -n payments
 ```
 
 ## Deploy
