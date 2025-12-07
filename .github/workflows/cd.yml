@@ -146,6 +146,33 @@ jobs:
             --name ${{ secrets.EKS_CLUSTER_NAME }} \
             --region us-east-1
 
+      # 6.5. Verificar/Instalar CRDs do Traefik
+      - name: Setup Traefik CRDs
+        run: |
+          echo "Verificando se o Traefik está instalado no cluster..."
+          
+          if kubectl get deployment traefik -n kube-system >/dev/null 2>&1 || \
+             kubectl get daemonset traefik -n kube-system >/dev/null 2>&1 || \
+             kubectl get deployment traefik -n traefik >/dev/null 2>&1; then
+            echo "Traefik encontrado no cluster."
+            
+            if ! kubectl get crd middlewares.traefik.containo.us >/dev/null 2>&1; then
+              echo "CRDs do Traefik não encontrados. Tentando instalar..."
+              
+              kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v2.11/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml 2>/dev/null || \
+              kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v3.0/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1.yml 2>/dev/null || \
+              echo "⚠️  Não foi possível instalar os CRDs automaticamente."
+              
+              echo "Aguardando CRDs ficarem disponíveis..."
+              sleep 10
+            else
+              echo "✅ CRDs do Traefik já estão instalados."
+            fi
+          else
+            echo "⚠️  Traefik não encontrado no cluster. O middleware será ignorado."
+            echo "Para usar o middleware, instale o Traefik primeiro ou use outro Ingress Controller."
+          fi
+
       # 7. Deploy no EKS
       - name: Deploy to EKS
         env:
@@ -172,13 +199,13 @@ jobs:
           CURRENT_IMAGE=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
           NEW_IMAGE=$(grep "image:" k8s/payments/processed/deployment.yaml | awk '{print $2}' | tr -d '"')
           
-          # --- BLOCO DE LIMPEZA FORÇADA ---
-          echo "🚨 MODO DE CORREÇÃO: Forçando a exclusão do Load Balancer antigo (internet-facing)..."
-          kubectl delete svc payments-service -n payments --ignore-not-found=true
+          # # --- BLOCO DE LIMPEZA FORÇADA ---
+          # echo "🚨 MODO DE CORREÇÃO: Forçando a exclusão do Load Balancer antigo (internet-facing)..."
+          # kubectl delete svc payments-service -n payments --ignore-not-found=true
           
-          echo "⏳ Aguardando 35 segundos para a AWS remover o NLB antigo..."
-          sleep 35
-          # ------------------------------------------------
+          # echo "⏳ Aguardando 35 segundos para a AWS remover o NLB antigo..."
+          # sleep 35
+          # # ------------------------------------------------
           
           kubectl apply -f k8s/payments/processed/configmap.yaml
           kubectl apply -f k8s/payments/processed/secret.yaml
@@ -188,11 +215,22 @@ jobs:
           kubectl apply -f k8s/payments/processed/hpa.yaml
           
           if [ -f k8s/payments/processed/middleware.yaml ]; then
-            kubectl apply -f k8s/payments/processed/middleware.yaml
+            if kubectl get crd middlewares.traefik.containo.us >/dev/null 2>&1; then
+              echo "✅ Aplicando middleware do Traefik..."
+              kubectl apply -f k8s/payments/processed/middleware.yaml || {
+                echo "⚠️  Erro ao aplicar middleware. Continuando sem ele..."
+              }
+            else
+              echo "⚠️  CRDs do Traefik não estão disponíveis. Pulando aplicação do middleware."
+              echo "O Ingress funcionará, mas sem o stripPrefix. Configure o path corretamente no Ingress."
+            fi
           fi
           
           if [ -f k8s/payments/processed/ingress.yaml ]; then
-            kubectl apply -f k8s/payments/processed/ingress.yaml
+            echo "Aplicando Ingress..."
+            kubectl apply -f k8s/payments/processed/ingress.yaml || {
+              echo "⚠️  Erro ao aplicar Ingress. Verifique se o Ingress Controller está instalado."
+            }
           fi
           
           if [ -f k8s/traefik-lb.yaml ]; then
