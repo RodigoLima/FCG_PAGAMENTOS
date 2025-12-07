@@ -17,6 +17,8 @@ metadata:
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
     alb.ingress.kubernetes.io/group.name: fcg-services
     alb.ingress.kubernetes.io/group.order: "100"
+    alb.ingress.kubernetes.io/tags: Environment=production,Service=fcg-services,ManagedBy=k8s
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
 spec:
   ingressClassName: alb
   rules:

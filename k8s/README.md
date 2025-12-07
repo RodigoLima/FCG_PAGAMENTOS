@@ -38,11 +38,19 @@ Horizontal Pod Autoscaler configurado para:
 
 ### `ingress.yaml`
 Ingress usando AWS Load Balancer Controller (ALB):
-- ALB internet-facing
+- ALB internet-facing (exposto para API Gateway)
 - Health checks configurados
 - Paths: `/payments` e `/health`
 - Compartilha ALB com outros microserviços via `group.name: fcg-services`
 - Ordem de prioridade: `100` (ajustar conforme necessário para outros serviços)
+- Tags configuradas para identificação e gerenciamento
+- Timeout de idle configurado para 60 segundos
+
+**Integração com API Gateway:**
+O ALB criado por este ingress pode ser usado como backend do API Gateway. Após o deploy, obtenha o DNS do ALB com:
+```bash
+kubectl get ingress payments-ingress -n payments -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
 
 ## Deploy
 
