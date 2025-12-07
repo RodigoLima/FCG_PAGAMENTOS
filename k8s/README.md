@@ -53,9 +53,7 @@ Ingress usando AWS Load Balancer Controller (ALB):
 - Timeout de idle configurado para 60 segundos
 
 **Integração com API Gateway:**
-O ALB criado por este ingress pode ser usado como backend do API Gateway. 
-
-**Importante:** O Service está configurado como `ClusterIP` (interno), o que é a prática recomendada. O Load Balancer (ALB) é criado automaticamente pelo AWS Load Balancer Controller quando o Ingress é aplicado. Não é necessário alterar o Service para LoadBalancer.
+O NLB criado pelo Service pode ser usado como backend do API Gateway. O NLB é criado automaticamente quando o Service do tipo LoadBalancer é aplicado no cluster EKS.
 
 **Verificando se o NLB foi criado:**
 
