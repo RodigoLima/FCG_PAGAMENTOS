@@ -579,11 +579,11 @@ jobs:
           echo "=== 5. STATUS DO MIDDLEWARE ==="
           kubectl get middleware -A
           kubectl get middleware -n payments 2>/dev/null || echo "Middleware não encontrado ou CRD não instalado"
-          if kubectl get middleware stripprefix -n payments >/dev/null 2>&1; then
-            echo "✅ Middleware stripprefix encontrado:"
-            kubectl get middleware stripprefix -n payments -o yaml
+          if kubectl get middleware pay-strip -n payments >/dev/null 2>&1; then
+            echo "✅ Middleware pay-strip encontrado:"
+            kubectl get middleware pay-strip -n payments -o yaml
           else
-            echo "❌ Middleware stripprefix NÃO encontrado!"
+            echo "❌ Middleware pay-strip NÃO encontrado!"
           fi
           
           echo ""
