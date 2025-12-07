@@ -304,9 +304,20 @@ jobs:
           if [ -f k8s/payments/processed/middleware.yaml ]; then
             if kubectl get crd middlewares.traefik.containo.us >/dev/null 2>&1; then
               echo "✅ Aplicando middleware do Traefik..."
-              kubectl apply -f k8s/payments/processed/middleware.yaml || {
+              if kubectl apply -f k8s/payments/processed/middleware.yaml; then
+                echo "✅ Middleware aplicado com sucesso!"
+                echo "⏳ Aguardando middleware ficar disponível..."
+                sleep 5
+                
+                if kubectl get middleware payments-stripprefix -n payments >/dev/null 2>&1; then
+                  echo "✅ Middleware payments-stripprefix confirmado no cluster"
+                else
+                  echo "⚠️  Middleware não encontrado após aplicação. Verificando..."
+                  kubectl get middleware -n payments
+                fi
+              else
                 echo "⚠️  Erro ao aplicar middleware. Continuando sem ele..."
-              }
+              fi
             else
               echo "⚠️  CRDs do Traefik não estão disponíveis. Pulando aplicação do middleware."
               echo "O Ingress funcionará, mas sem o stripPrefix. Configure o path corretamente no Ingress."
@@ -315,9 +326,13 @@ jobs:
           
           if [ -f k8s/payments/processed/ingress.yaml ]; then
             echo "Aplicando Ingress..."
-            kubectl apply -f k8s/payments/processed/ingress.yaml || {
+            if kubectl apply -f k8s/payments/processed/ingress.yaml; then
+              echo "✅ Ingress aplicado com sucesso!"
+              echo "⏳ Aguardando Traefik processar o Ingress..."
+              sleep 5
+            else
               echo "⚠️  Erro ao aplicar Ingress. Verifique se o Ingress Controller está instalado."
-            }
+            fi
           fi
           
           if [ -f k8s/payments/processed/traefik-service.yaml ]; then
