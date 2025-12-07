@@ -15,7 +15,7 @@ k8s/
 ├── ingress.yaml           # Ingress (Traefik)
 ├── middleware.yaml        # Middleware Traefik (stripPrefix)
 └── traefik/               # Configurações do Traefik
-    ├── service.yaml       # LoadBalancer do Traefik (porta fixa 31551)
+    ├── service.yaml       # LoadBalancer do Traefik (NodePort automático)
     └── service-backup.yaml # Versão alternativa
 ```
 
@@ -78,7 +78,7 @@ O Traefik é instalado automaticamente pela pipeline de CD via Helm.
 ```
 API Gateway
     ↓
-NLB (Traefik) - Porta 31551
+NLB (Traefik) - NodePort automático
     ↓
 Traefik Ingress Controller
     ↓
@@ -109,7 +109,7 @@ O deploy é realizado automaticamente via GitHub Actions quando há push para a 
 6. HPA
 7. Middleware (Traefik)
 8. Ingress (Traefik)
-9. Traefik LoadBalancer (porta fixa 31551)
+9. Traefik LoadBalancer (NodePort atribuído automaticamente)
 
 ## Monitoramento
 
@@ -124,7 +124,7 @@ O deploy é realizado automaticamente via GitHub Actions quando há push para a 
 ```bash
 kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
 ```
-Deve retornar: `31551`
+Retorna a porta NodePort atribuída automaticamente. Configure o Target Group do API Gateway para usar essa porta.
 
 ### Verificar DNS do NLB:
 ```bash

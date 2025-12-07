@@ -128,11 +128,21 @@ jobs:
           fi
           
           if [ -f k8s/traefik/service.yaml ]; then
+            echo "📋 Copiando traefik/service.yaml..."
             cp k8s/traefik/service.yaml k8s/payments/processed/traefik-service.yaml
+            if [ ! -f k8s/payments/processed/traefik-service.yaml ]; then
+              echo "❌ ERRO: Falha ao copiar traefik/service.yaml"
+              exit 1
+            fi
+            echo "✅ traefik-service.yaml copiado com sucesso"
+          else
+            echo "⚠️  AVISO: k8s/traefik/service.yaml não encontrado"
           fi
           
           if [ -f k8s/traefik/service-backup.yaml ]; then
+            echo "📋 Copiando traefik/service-backup.yaml..."
             cp k8s/traefik/service-backup.yaml k8s/payments/processed/traefik-service-backup.yaml
+            echo "✅ traefik-service-backup.yaml copiado com sucesso"
           fi
           
           if grep -r '\${' k8s/payments/processed/*.yaml 2>/dev/null; then
@@ -297,15 +307,34 @@ jobs:
             echo "⏳ Aguardando 10 segundos para limpeza..."
             sleep 10
             
-            echo "✅ Aplicando Traefik Service com porta fixa (31551)..."
-            kubectl apply -f k8s/payments/processed/traefik-service.yaml || {
+            echo "✅ Aplicando Traefik Service LoadBalancer..."
+            if kubectl apply -f k8s/payments/processed/traefik-service.yaml; then
+              echo "✅ Traefik Service aplicado com sucesso!"
+              echo "⏳ Aguardando LoadBalancer ser provisionado..."
+              sleep 15
+              
+              NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
+              if [ -n "$NODE_PORT" ]; then
+                echo "✅ NodePort atribuído: $NODE_PORT"
+                echo "⚠️  IMPORTANTE: Configure o Target Group do API Gateway para usar a porta $NODE_PORT"
+              else
+                echo "⚠️  NodePort ainda não foi atribuído. Verifique novamente em alguns segundos."
+              fi
+            else
               echo "⚠️  Erro ao aplicar traefik-service.yaml. Tentando service-backup.yaml..."
               if [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
                 kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
+              else
+                echo "❌ ERRO: Não foi possível aplicar o Traefik Service!"
+                exit 1
               fi
-            }
+            fi
           elif [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
+            echo "✅ Aplicando Traefik Service (backup)..."
             kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
+          else
+            echo "⚠️  AVISO: Arquivo traefik-service.yaml não encontrado. O LoadBalancer não será criado."
+            echo "Verifique se o arquivo k8s/traefik/service.yaml existe no repositório."
           fi
           
           SKIP_ROLLOUT=false
@@ -398,7 +427,7 @@ jobs:
           fi
           
           echo ""
-          echo "=== 2. PORTA É 31551? ==="
+          echo "=== 2. NODEPORT DO SERVICE ==="
           TRAEFIK_SVC=$(kubectl get svc traefik-loadbalancer -n kube-system 2>/dev/null || echo "")
           if [ -z "$TRAEFIK_SVC" ]; then
             echo "❌ Service traefik-loadbalancer NÃO encontrado!"
@@ -419,14 +448,9 @@ jobs:
             kubectl describe svc traefik-loadbalancer -n kube-system | grep -A 10 "Port:"
             NODE_PORT="N/A"
           else
-            if [ "$NODE_PORT" = "31551" ]; then
-              echo "✅ PORTA CORRETA: $NODE_PORT (esperado: 31551)"
-            else
-              echo "❌ PORTA INCORRETA: $NODE_PORT (esperado: 31551)"
-              echo ""
-              echo "⚠️  A porta não é 31551. O Target Group precisa ser atualizado para a porta $NODE_PORT"
-              echo "Ou recrie o service com a porta correta."
-            fi
+            echo "✅ NodePort atribuído: $NODE_PORT"
+            echo ""
+            echo "⚠️  IMPORTANTE: Configure o Target Group do API Gateway para usar a porta $NODE_PORT"
           fi
           
           echo ""
@@ -437,10 +461,6 @@ jobs:
             echo ""
             echo "Use este hostname para configurar o API Gateway"
             echo "As rotas devem ser configuradas com o prefixo /api/payments"
-            if [ "$NODE_PORT" != "N/A" ]; then
-              echo ""
-              echo "⚠️  IMPORTANTE: Configure o Target Group para usar a porta $NODE_PORT"
-            fi
           else
             echo "⏳ NLB do Traefik ainda está sendo provisionado..."
             echo "Aguarde alguns minutos e verifique novamente com:"

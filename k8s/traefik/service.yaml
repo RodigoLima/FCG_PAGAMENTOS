@@ -18,12 +18,10 @@ spec:
     port: 80
     targetPort: 80
     protocol: TCP
-    nodePort: 31551
   - name: https
     port: 443
     targetPort: 443
     protocol: TCP
-    nodePort: 31552
   selector:
     app.kubernetes.io/name: traefik
   sessionAffinity: ClientIP
