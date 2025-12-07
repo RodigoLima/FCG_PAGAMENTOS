@@ -127,12 +127,12 @@ jobs:
             echo "Aviso: namespace.yaml não encontrado, será criado automaticamente"
           fi
           
-          if [ -f k8s/traefik-service-fix.yaml ]; then
-            cp k8s/traefik-service-fix.yaml k8s/payments/processed/traefik-service-fix.yaml
+          if [ -f k8s/traefik/service.yaml ]; then
+            cp k8s/traefik/service.yaml k8s/payments/processed/traefik-service.yaml
           fi
           
-          if [ -f k8s/traefik-lb.yaml ]; then
-            cp k8s/traefik-lb.yaml k8s/payments/processed/traefik-lb.yaml
+          if [ -f k8s/traefik/service-backup.yaml ]; then
+            cp k8s/traefik/service-backup.yaml k8s/payments/processed/traefik-service-backup.yaml
           fi
           
           if grep -r '\${' k8s/payments/processed/*.yaml 2>/dev/null; then
@@ -154,7 +154,52 @@ jobs:
             --name ${{ secrets.EKS_CLUSTER_NAME }} \
             --region us-east-1
 
-      # 6.5. Verificar/Instalar CRDs do Traefik
+      # 6.5. Instalar Helm
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm version
+
+      # 6.6. Instalar Traefik
+      - name: Install Traefik
+        run: |
+          echo "Verificando se o Traefik já está instalado..."
+          
+          if kubectl get deployment traefik -n kube-system >/dev/null 2>&1 || \
+             kubectl get daemonset traefik -n kube-system >/dev/null 2>&1 || \
+             kubectl get deployment traefik -n traefik >/dev/null 2>&1; then
+            echo "✅ Traefik já está instalado no cluster."
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik 2>/dev/null || \
+            kubectl get pods -n traefik -l app.kubernetes.io/name=traefik 2>/dev/null || true
+          else
+            echo "📦 Traefik não encontrado. Instalando via Helm..."
+            
+            helm repo add traefik https://traefik.github.io/charts
+            helm repo update
+            
+            echo "Instalando Traefik no namespace kube-system..."
+            helm upgrade --install traefik traefik/traefik \
+              --namespace kube-system \
+              --create-namespace \
+              --set service.type=ClusterIP \
+              --set ports.web.port=80 \
+              --set ports.websecure.port=443 \
+              --wait \
+              --timeout 5m || {
+                echo "⚠️  Erro ao instalar Traefik. Verificando status..."
+                kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik || true
+                exit 1
+              }
+            
+            echo "✅ Traefik instalado com sucesso!"
+            echo "⏳ Aguardando pods ficarem prontos..."
+            sleep 15
+            
+            echo "Status do Traefik:"
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik || true
+          fi
+
+      # 6.7. Verificar/Instalar CRDs do Traefik
       - name: Setup Traefik CRDs
         run: |
           echo "Verificando se o Traefik está instalado no cluster..."
@@ -245,7 +290,7 @@ jobs:
             }
           fi
           
-          if [ -f k8s/payments/processed/traefik-service-fix.yaml ]; then
+          if [ -f k8s/payments/processed/traefik-service.yaml ]; then
             echo "🔄 Deletando Traefik Service existente (se houver)..."
             kubectl delete svc traefik-loadbalancer -n kube-system --ignore-not-found=true
             
@@ -253,14 +298,14 @@ jobs:
             sleep 10
             
             echo "✅ Aplicando Traefik Service com porta fixa (31551)..."
-            kubectl apply -f k8s/payments/processed/traefik-service-fix.yaml || {
-              echo "⚠️  Erro ao aplicar traefik-service-fix.yaml. Tentando traefik-lb.yaml..."
-              if [ -f k8s/payments/processed/traefik-lb.yaml ]; then
-                kubectl apply -f k8s/payments/processed/traefik-lb.yaml
+            kubectl apply -f k8s/payments/processed/traefik-service.yaml || {
+              echo "⚠️  Erro ao aplicar traefik-service.yaml. Tentando service-backup.yaml..."
+              if [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
+                kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
               fi
             }
-          elif [ -f k8s/payments/processed/traefik-lb.yaml ]; then
-            kubectl apply -f k8s/payments/processed/traefik-lb.yaml
+          elif [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
+            kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
           fi
           
           SKIP_ROLLOUT=false

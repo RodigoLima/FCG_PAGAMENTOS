@@ -2,7 +2,24 @@
 
 Estrutura completa de orquestração Kubernetes para o serviço de pagamentos seguindo boas práticas.
 
-## Arquivos
+## Estrutura de Arquivos
+
+```
+k8s/
+├── namespace.yaml          # Namespace do serviço
+├── configmap.yaml          # Configurações não sensíveis
+├── secret.yaml             # Dados sensíveis
+├── deployment.yaml         # Deployment da aplicação
+├── service.yaml            # Service (ClusterIP)
+├── hpa.yaml               # Horizontal Pod Autoscaler
+├── ingress.yaml           # Ingress (Traefik)
+├── middleware.yaml        # Middleware Traefik (stripPrefix)
+└── traefik/               # Configurações do Traefik
+    ├── service.yaml       # LoadBalancer do Traefik (porta fixa 31551)
+    └── service-backup.yaml # Versão alternativa
+```
+
+## Arquivos do Payments Service
 
 ### `namespace.yaml`
 Define o namespace `payments` para isolamento dos recursos.
@@ -28,13 +45,10 @@ Deployment do serviço com:
 - Image pull secrets para ECR
 
 ### `service.yaml`
-Service do tipo LoadBalancer com anotação para criar um NLB (Network Load Balancer):
-- Tipo: `LoadBalancer`
-- Anotação: `service.beta.kubernetes.io/aws-load-balancer-type: "nlb"`
-- Scheme: `internet-facing` (exposto para API Gateway)
+Service do tipo **ClusterIP** (não expõe diretamente):
+- Tipo: `ClusterIP`
 - Porta: 80 (mapeada para 8080 do container)
-
-**Importante:** Este Service cria um NLB diretamente, que será visível no console EC2 → Load Balancers. O NLB pode ser usado como backend do API Gateway.
+- Acesso via Ingress/Traefik
 
 ### `hpa.yaml`
 Horizontal Pod Autoscaler configurado para:
@@ -43,48 +57,39 @@ Horizontal Pod Autoscaler configurado para:
 - Políticas de scale up/down otimizadas
 
 ### `ingress.yaml`
-Ingress usando AWS Load Balancer Controller (ALB):
-- ALB internet-facing (exposto para API Gateway)
-- Health checks configurados
-- Paths: `/payments` e `/health`
-- Compartilha ALB com outros microserviços via `group.name: fcg-services`
-- Ordem de prioridade: `100` (ajustar conforme necessário para outros serviços)
-- Tags configuradas para identificação e gerenciamento
-- Timeout de idle configurado para 60 segundos
+Ingress usando **Traefik** como Ingress Controller:
+- IngressClassName: `traefik`
+- Path: `/api/payments` (com middleware para remover prefixo)
+- Health check: `/api/payments/health`
 
-**Integração com API Gateway:**
-O NLB criado pelo Service pode ser usado como backend do API Gateway. O NLB é criado automaticamente quando o Service do tipo LoadBalancer é aplicado no cluster EKS.
+### `middleware.yaml`
+Middleware do Traefik para remover o prefixo `/api/payments`:
+- StripPrefix: remove `/api/payments` antes de encaminhar para o service
+- Permite que o código C# receba requisições em `/` mesmo quando acessado via `/api/payments`
 
-**Verificando se o NLB foi criado:**
+## Arquivos do Traefik
 
-1. **Via kubectl (recomendado):**
-```bash
-# Verificar status do Service e obter o DNS do NLB
-kubectl get service payments-service -n payments
+Ver documentação em `traefik/README.md`.
 
-# Obter apenas o DNS do NLB
-kubectl get service payments-service -n payments -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+O Traefik é instalado automaticamente pela pipeline de CD via Helm.
 
-# Verificar detalhes completos
-kubectl describe service payments-service -n payments
+## Arquitetura de Roteamento
+
 ```
-
-2. **Via Console AWS:**
-- Acesse: EC2 → Load Balancers
-- Procure por um NLB (Network Load Balancer) com nome relacionado ao serviço
-- O NLB será do tipo "Network" e estará com scheme "internet-facing"
-
-**Se o NLB não aparecer:**
-- Verifique se o Service foi aplicado corretamente:
-```bash
-kubectl get service -n payments
-kubectl describe service payments-service -n payments
+API Gateway
+    ↓
+NLB (Traefik) - Porta 31551
+    ↓
+Traefik Ingress Controller
+    ↓
+Middleware (stripPrefix: /api/payments)
+    ↓
+Ingress (/api/payments → /)
+    ↓
+Service (payments-service:80)
+    ↓
+Pods (payments:8080)
 ```
-- Verifique os eventos do namespace:
-```bash
-kubectl get events -n payments --sort-by='.lastTimestamp'
-```
-- Aguarde alguns minutos, pois a criação do NLB pode levar 1-2 minutos
 
 ## Deploy
 
@@ -92,22 +97,43 @@ O deploy é realizado automaticamente via GitHub Actions quando há push para a 
 
 ### Pré-requisitos:
 - Cluster EKS criado na AWS
-- AWS Load Balancer Controller instalado no cluster
+- Traefik instalado no cluster (instalado automaticamente pela pipeline)
 - Secret `EKS_CLUSTER_NAME` configurado no GitHub
 
-### Ordem de aplicação:
+### Ordem de aplicação (automática):
 1. Namespace
 2. ConfigMap e Secret
 3. ECR Secret (para pull de imagens)
 4. Deployment
-5. Service
+5. Service (ClusterIP)
 6. HPA
-7. Ingress
+7. Middleware (Traefik)
+8. Ingress (Traefik)
+9. Traefik LoadBalancer (porta fixa 31551)
 
 ## Monitoramento
 
-- Health checks: `GET /health`
+- Health checks: `GET /health` ou `GET /api/payments/health`
 - Métricas: `GET /metrics`
 - Status do HPA: `kubectl get hpa payments-hpa -n payments`
+- Status do Traefik: `kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik`
+
+## Verificações Úteis
+
+### Verificar porta do Traefik NLB:
+```bash
+kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
+```
+Deve retornar: `31551`
+
+### Verificar DNS do NLB:
+```bash
+kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
+
+### Verificar status do middleware:
+```bash
+kubectl get middleware -n payments
+```
 
 
