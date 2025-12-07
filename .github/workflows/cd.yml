@@ -233,7 +233,21 @@ jobs:
             }
           fi
           
-          if [ -f k8s/traefik-lb.yaml ]; then
+          if [ -f k8s/traefik-service-fix.yaml ]; then
+            echo "🔄 Deletando Traefik Service existente (se houver)..."
+            kubectl delete svc traefik-loadbalancer -n kube-system --ignore-not-found=true
+            
+            echo "⏳ Aguardando 10 segundos para limpeza..."
+            sleep 10
+            
+            echo "✅ Aplicando Traefik Service com porta fixa (31551)..."
+            kubectl apply -f k8s/traefik-service-fix.yaml || {
+              echo "⚠️  Erro ao aplicar traefik-service-fix.yaml. Tentando traefik-lb.yaml..."
+              if [ -f k8s/traefik-lb.yaml ]; then
+                kubectl apply -f k8s/traefik-lb.yaml
+              fi
+            }
+          elif [ -f k8s/traefik-lb.yaml ]; then
             kubectl apply -f k8s/traefik-lb.yaml
           fi
           
@@ -275,29 +289,97 @@ jobs:
           
           echo "Deploy concluído com sucesso!"
 
-      # 8. Verificar Load Balancer URL
-      - name: Check Load Balancer URL
+      # 8. Verificar Traefik e Load Balancer
+      - name: Verify Traefik and Load Balancer
         run: |
-          echo "Aguardando IP do Load Balancer do Traefik..."
+          echo "🔍 Verificando status do Traefik e Load Balancer..."
           sleep 10
           
           echo ""
-          echo "=== Status do Service Payments (ClusterIP) ==="
-          kubectl get svc payments-service -n payments
+          echo "=== 1. TRAEFIK ESTÁ VIVO? ==="
+          TRAEFIK_DEPLOYMENT=$(kubectl get deployment traefik -n kube-system 2>/dev/null || echo "")
+          TRAEFIK_DAEMONSET=$(kubectl get daemonset traefik -n kube-system 2>/dev/null || echo "")
           
-          echo ""
-          echo "=== DNS do NLB do Traefik ==="
-          NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
-          if [ -n "$NLB_HOSTNAME" ]; then
-            echo "Traefik NLB Hostname: $NLB_HOSTNAME"
+          if [ -n "$TRAEFIK_DEPLOYMENT" ]; then
+            echo "✅ Traefik Deployment encontrado:"
+            kubectl get deployment traefik -n kube-system
             echo ""
-            echo "Use este hostname para configurar o API Gateway"
-            echo "As rotas devem ser configuradas com o prefixo /api/payments"
+            echo "Pods do Traefik:"
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
+            READY_PODS=$(kubectl get deployment traefik -n kube-system -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            DESIRED_PODS=$(kubectl get deployment traefik -n kube-system -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+            if [ "$READY_PODS" = "$DESIRED_PODS" ] && [ "$READY_PODS" != "0" ]; then
+              echo "✅ Traefik está RODANDO ($READY_PODS/$DESIRED_PODS pods prontos)"
+            else
+              echo "⚠️  Traefik NÃO está totalmente pronto ($READY_PODS/$DESIRED_PODS pods)"
+            fi
+          elif [ -n "$TRAEFIK_DAEMONSET" ]; then
+            echo "✅ Traefik DaemonSet encontrado:"
+            kubectl get daemonset traefik -n kube-system
+            echo ""
+            echo "Pods do Traefik:"
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
+            READY_PODS=$(kubectl get daemonset traefik -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+            DESIRED_PODS=$(kubectl get daemonset traefik -n kube-system -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "0")
+            if [ "$READY_PODS" = "$DESIRED_PODS" ] && [ "$READY_PODS" != "0" ]; then
+              echo "✅ Traefik está RODANDO ($READY_PODS/$DESIRED_PODS pods prontos)"
+            else
+              echo "⚠️  Traefik NÃO está totalmente pronto ($READY_PODS/$DESIRED_PODS pods)"
+            fi
           else
-            echo "NLB do Traefik ainda está sendo provisionado. Aguarde alguns minutos e verifique novamente com:"
-            echo "kubectl get svc traefik-loadbalancer -n kube-system"
+            echo "❌ Traefik NÃO encontrado no cluster!"
+            echo "Verifique se o Traefik está instalado:"
+            echo "  kubectl get all -n kube-system | grep traefik"
+            exit 1
           fi
           
           echo ""
-          echo "=== Status do Middleware ==="
+          echo "=== 2. PORTA É 31551? ==="
+          TRAEFIK_SVC=$(kubectl get svc traefik-loadbalancer -n kube-system 2>/dev/null || echo "")
+          if [ -z "$TRAEFIK_SVC" ]; then
+            echo "❌ Service traefik-loadbalancer NÃO encontrado!"
+            exit 1
+          fi
+          
+          echo "Service traefik-loadbalancer:"
+          kubectl get svc traefik-loadbalancer -n kube-system
+          echo ""
+          
+          NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
+          if [ -z "$NODE_PORT" ]; then
+            echo "⚠️  NodePort não encontrado no service. Verificando detalhes..."
+            kubectl describe svc traefik-loadbalancer -n kube-system | grep -A 10 "Port:"
+          else
+            if [ "$NODE_PORT" = "31551" ]; then
+              echo "✅ PORTA CORRETA: $NODE_PORT (esperado: 31551)"
+            else
+              echo "❌ PORTA INCORRETA: $NODE_PORT (esperado: 31551)"
+              echo ""
+              echo "⚠️  A porta não é 31551. O Target Group precisa ser atualizado para a porta $NODE_PORT"
+              echo "Ou recrie o service com a porta correta."
+            fi
+          fi
+          
+          echo ""
+          echo "=== 3. DNS DO NLB ==="
+          NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          if [ -n "$NLB_HOSTNAME" ]; then
+            echo "✅ Traefik NLB Hostname: $NLB_HOSTNAME"
+            echo ""
+            echo "Use este hostname para configurar o API Gateway"
+            echo "As rotas devem ser configuradas com o prefixo /api/payments"
+            echo ""
+            echo "⚠️  IMPORTANTE: Configure o Target Group para usar a porta $NODE_PORT"
+          else
+            echo "⏳ NLB do Traefik ainda está sendo provisionado..."
+            echo "Aguarde alguns minutos e verifique novamente com:"
+            echo "  kubectl get svc traefik-loadbalancer -n kube-system"
+          fi
+          
+          echo ""
+          echo "=== 4. STATUS DO SERVICE PAYMENTS ==="
+          kubectl get svc payments-service -n payments
+          
+          echo ""
+          echo "=== 5. STATUS DO MIDDLEWARE ==="
           kubectl get middleware -n payments 2>/dev/null || echo "Middleware não encontrado ou CRD não instalado"
