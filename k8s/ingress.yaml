@@ -19,11 +19,4 @@ spec:
             name: payments-service
             port:
               number: 80
-      - path: /api/payments/health
-        pathType: Exact
-        backend:
-          service:
-            name: payments-service
-            port:
-              number: 80
 
