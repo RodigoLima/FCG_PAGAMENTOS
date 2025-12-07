@@ -172,6 +172,25 @@ jobs:
           kubectl apply -f k8s/payments/processed/configmap.yaml
           kubectl apply -f k8s/payments/processed/secret.yaml
           kubectl apply -f k8s/payments/processed/deployment.yaml
+          
+          echo "Verificando se precisa recriar o Load Balancer..."
+          
+          CURRENT_SCHEME=$(kubectl get svc payments-service -n payments -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-scheme}' 2>/dev/null || echo "none")
+          
+          echo "Esquema atual detectado: $CURRENT_SCHEME"
+          
+          if [ "$CURRENT_SCHEME" != "internal" ] && [ "$CURRENT_SCHEME" != "none" ]; then
+            echo "⚠️ Detectado Load Balancer Público (ou incorreto). Deletando para recriar como Internal..."
+            kubectl delete svc payments-service -n payments
+            
+            echo "Aguardando 20 segundos para a AWS processar a limpeza..."
+            sleep 20
+          elif [ "$CURRENT_SCHEME" == "none" ]; then
+            echo "Serviço não existe ainda. Será criado do zero."
+          else
+            echo "✅ Load Balancer já é internal. Mantendo."
+          fi
+          
           kubectl apply -f k8s/payments/processed/service.yaml
           kubectl apply -f k8s/payments/processed/hpa.yaml
           
