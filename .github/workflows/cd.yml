@@ -170,7 +170,7 @@ jobs:
           NEW_IMAGE=$(grep "image:" k8s/payments/processed/deployment.yaml | awk '{print $2}' | tr -d '"')
           
           # --- BLOCO DE LIMPEZA FORÇADA ---
-          echo "🚨 MODO DE CORREÇÃO: Forçando a exclusão do Load Balancer antigo..."
+          echo "🚨 MODO DE CORREÇÃO: Forçando a exclusão do Load Balancer antigo (internet-facing)..."
           kubectl delete svc payments-service -n payments --ignore-not-found=true
           
           echo "⏳ Aguardando 35 segundos para a AWS remover o NLB antigo..."
