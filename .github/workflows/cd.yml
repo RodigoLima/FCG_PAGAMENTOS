@@ -303,6 +303,10 @@ jobs:
           
           if [ -f k8s/payments/processed/middleware.yaml ]; then
             if kubectl get crd middlewares.traefik.containo.us >/dev/null 2>&1; then
+
+              kubectl delete middleware stripprefix -n payments --ignore-not-found
+              kubectl delete middleware payments-stripprefix -n payments --ignore-not-found
+  
               echo "✅ Aplicando middleware do Traefik..."
               if kubectl apply -f k8s/payments/processed/middleware.yaml; then
                 echo "✅ Middleware aplicado com sucesso!"
