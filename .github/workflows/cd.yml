@@ -313,8 +313,8 @@ jobs:
                 echo "⏳ Aguardando middleware ficar disponível..."
                 sleep 5
                 
-                if kubectl get middleware payments-stripprefix -n payments >/dev/null 2>&1; then
-                  echo "✅ Middleware payments-stripprefix confirmado no cluster"
+                if kubectl get middleware pay-strip -n payments >/dev/null 2>&1; then
+                  echo "✅ Middleware pay-strip confirmado no cluster"
                 else
                   echo "⚠️  Middleware não encontrado após aplicação. Verificando..."
                   kubectl get middleware -n payments
