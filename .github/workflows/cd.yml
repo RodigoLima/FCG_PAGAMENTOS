@@ -127,6 +127,14 @@ jobs:
             echo "Aviso: namespace.yaml não encontrado, será criado automaticamente"
           fi
           
+          if [ -f k8s/traefik-service-fix.yaml ]; then
+            cp k8s/traefik-service-fix.yaml k8s/payments/processed/traefik-service-fix.yaml
+          fi
+          
+          if [ -f k8s/traefik-lb.yaml ]; then
+            cp k8s/traefik-lb.yaml k8s/payments/processed/traefik-lb.yaml
+          fi
+          
           if grep -r '\${' k8s/payments/processed/*.yaml 2>/dev/null; then
             echo "ERRO: Variáveis não substituídas encontradas"
             exit 1
@@ -181,7 +189,11 @@ jobs:
         run: |
           set -e
           
-          kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f -
+          if [ -f k8s/payments/processed/namespace.yaml ]; then
+            kubectl apply -f k8s/payments/processed/namespace.yaml
+          else
+            kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f -
+          fi
           
           if [ -z "$ECR_REGISTRY" ]; then
             ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com"
@@ -233,7 +245,7 @@ jobs:
             }
           fi
           
-          if [ -f k8s/traefik-service-fix.yaml ]; then
+          if [ -f k8s/payments/processed/traefik-service-fix.yaml ]; then
             echo "🔄 Deletando Traefik Service existente (se houver)..."
             kubectl delete svc traefik-loadbalancer -n kube-system --ignore-not-found=true
             
@@ -241,26 +253,33 @@ jobs:
             sleep 10
             
             echo "✅ Aplicando Traefik Service com porta fixa (31551)..."
-            kubectl apply -f k8s/traefik-service-fix.yaml || {
+            kubectl apply -f k8s/payments/processed/traefik-service-fix.yaml || {
               echo "⚠️  Erro ao aplicar traefik-service-fix.yaml. Tentando traefik-lb.yaml..."
-              if [ -f k8s/traefik-lb.yaml ]; then
-                kubectl apply -f k8s/traefik-lb.yaml
+              if [ -f k8s/payments/processed/traefik-lb.yaml ]; then
+                kubectl apply -f k8s/payments/processed/traefik-lb.yaml
               fi
             }
-          elif [ -f k8s/traefik-lb.yaml ]; then
-            kubectl apply -f k8s/traefik-lb.yaml
+          elif [ -f k8s/payments/processed/traefik-lb.yaml ]; then
+            kubectl apply -f k8s/payments/processed/traefik-lb.yaml
           fi
           
+          SKIP_ROLLOUT=false
           if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
             READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-            if [ "$READY" != "0" ]; then
-              echo "Deployment já está pronto, pulando rollout!"
-              exit 0
+            DESIRED=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+            if [ "$READY" = "$DESIRED" ] && [ "$READY" != "0" ]; then
+              echo "ℹ️  Deployment já está pronto com a mesma imagem. Verificando se há mudanças em outros recursos..."
+              SKIP_ROLLOUT=true
             fi
           fi
           
-          if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
-            kubectl rollout restart deployment/payments-deployment -n payments
+          if [ "$SKIP_ROLLOUT" = "false" ]; then
+            if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
+              echo "🔄 Imagem mudou. Reiniciando deployment..."
+              kubectl rollout restart deployment/payments-deployment -n payments
+            else
+              echo "🔄 Aguardando deployment ficar pronto..."
+            fi
           fi
           
           if ! kubectl rollout status deployment/payments-deployment -n payments --timeout=300s; then
@@ -347,8 +366,13 @@ jobs:
           
           NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
           if [ -z "$NODE_PORT" ]; then
+            NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+          fi
+          
+          if [ -z "$NODE_PORT" ]; then
             echo "⚠️  NodePort não encontrado no service. Verificando detalhes..."
             kubectl describe svc traefik-loadbalancer -n kube-system | grep -A 10 "Port:"
+            NODE_PORT="N/A"
           else
             if [ "$NODE_PORT" = "31551" ]; then
               echo "✅ PORTA CORRETA: $NODE_PORT (esperado: 31551)"
@@ -368,8 +392,10 @@ jobs:
             echo ""
             echo "Use este hostname para configurar o API Gateway"
             echo "As rotas devem ser configuradas com o prefixo /api/payments"
-            echo ""
-            echo "⚠️  IMPORTANTE: Configure o Target Group para usar a porta $NODE_PORT"
+            if [ "$NODE_PORT" != "N/A" ]; then
+              echo ""
+              echo "⚠️  IMPORTANTE: Configure o Target Group para usar a porta $NODE_PORT"
+            fi
           else
             echo "⏳ NLB do Traefik ainda está sendo provisionado..."
             echo "Aguarde alguns minutos e verifique novamente com:"
