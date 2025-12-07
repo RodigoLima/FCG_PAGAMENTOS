@@ -41,6 +41,8 @@ Ingress usando AWS Load Balancer Controller (ALB):
 - ALB internet-facing
 - Health checks configurados
 - Paths: `/payments` e `/health`
+- Compartilha ALB com outros microserviços via `group.name: fcg-services`
+- Ordem de prioridade: `100` (ajustar conforme necessário para outros serviços)
 
 ## Deploy
 

@@ -15,6 +15,8 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    alb.ingress.kubernetes.io/group.name: fcg-services
+    alb.ingress.kubernetes.io/group.order: "100"
 spec:
   ingressClassName: alb
   rules:
