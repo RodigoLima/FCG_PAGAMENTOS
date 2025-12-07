@@ -209,6 +209,24 @@ jobs:
             kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik || true
           fi
 
+      # 6.6.5. Verificar AWS Load Balancer Controller
+      - name: Verify AWS Load Balancer Controller
+        run: |
+          echo "🔍 Verificando AWS Load Balancer Controller..."
+          
+          if kubectl get deployment -n kube-system aws-load-balancer-controller >/dev/null 2>&1; then
+            echo "✅ AWS Load Balancer Controller encontrado"
+            kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+          else
+            echo "⚠️  AWS Load Balancer Controller NÃO encontrado"
+            echo ""
+            echo "O EKS moderno (1.24+) usa o controlador de serviço integrado."
+            echo "Se o Load Balancer não for criado, verifique:"
+            echo "1. Permissões IAM do cluster (IRSA ou role do node group)"
+            echo "2. Tags das sub-redes (kubernetes.io/role/elb=1 para públicas)"
+            echo "3. Logs do controlador: kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller"
+          fi
+
       # 6.7. Verificar/Instalar CRDs do Traefik
       - name: Setup Traefik CRDs
         run: |
@@ -307,18 +325,56 @@ jobs:
             echo "⏳ Aguardando 10 segundos para limpeza..."
             sleep 10
             
+            echo "🔍 Verificando se os pods do Traefik estão disponíveis..."
+            TRAEFIK_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+            if [ -z "$TRAEFIK_PODS" ]; then
+              echo "⚠️  AVISO: Nenhum pod do Traefik encontrado com label app.kubernetes.io/name=traefik"
+              echo "Verificando pods do Traefik:"
+              kubectl get pods -n kube-system | grep traefik || echo "Nenhum pod encontrado"
+            else
+              echo "✅ Pods do Traefik encontrados: $TRAEFIK_PODS"
+            fi
+            
             echo "✅ Aplicando Traefik Service LoadBalancer..."
             if kubectl apply -f k8s/payments/processed/traefik-service.yaml; then
               echo "✅ Traefik Service aplicado com sucesso!"
-              echo "⏳ Aguardando LoadBalancer ser provisionado..."
-              sleep 15
+              
+              echo "📋 Verificando detalhes do service..."
+              kubectl get svc traefik-loadbalancer -n kube-system -o yaml | head -30
+              
+              echo "⏳ Aguardando LoadBalancer ser provisionado (pode levar até 2 minutos)..."
+              for i in {1..12}; do
+                sleep 10
+                NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                if [ -n "$NLB_HOSTNAME" ]; then
+                  echo "✅ LoadBalancer criado! Hostname: $NLB_HOSTNAME"
+                  break
+                else
+                  echo "⏳ Aguardando... ($i/12)"
+                fi
+              done
+              
+              if [ -z "$NLB_HOSTNAME" ]; then
+                echo "⚠️  LoadBalancer ainda não foi provisionado após 2 minutos."
+                echo "Verificando status do service:"
+                kubectl get svc traefik-loadbalancer -n kube-system
+                echo ""
+                echo "Verificando eventos:"
+                kubectl get events -n kube-system --sort-by='.lastTimestamp' | grep traefik-loadbalancer | tail -10 || echo "Nenhum evento encontrado"
+                echo ""
+                echo "⚠️  Possíveis causas:"
+                echo "1. Permissões IAM insuficientes no cluster EKS"
+                echo "2. Sub-redes sem tags corretas (kubernetes.io/role/elb=1)"
+                echo "3. AWS Load Balancer Controller não instalado ou com problemas"
+                echo "4. Limite de Load Balancers na conta AWS atingido"
+              fi
               
               NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
               if [ -n "$NODE_PORT" ]; then
                 echo "✅ NodePort atribuído: $NODE_PORT"
                 echo "⚠️  IMPORTANTE: Configure o Target Group do API Gateway para usar a porta $NODE_PORT"
               else
-                echo "⚠️  NodePort ainda não foi atribuído. Verifique novamente em alguns segundos."
+                echo "⚠️  NodePort ainda não foi atribuído."
               fi
             else
               echo "⚠️  Erro ao aplicar traefik-service.yaml. Tentando service-backup.yaml..."
@@ -454,17 +510,38 @@ jobs:
           fi
           
           echo ""
-          echo "=== 3. DNS DO NLB ==="
+          echo "=== 3. STATUS DO LOAD BALANCER ==="
           NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
           if [ -n "$NLB_HOSTNAME" ]; then
             echo "✅ Traefik NLB Hostname: $NLB_HOSTNAME"
             echo ""
             echo "Use este hostname para configurar o API Gateway"
             echo "As rotas devem ser configuradas com o prefixo /api/payments"
+            echo ""
+            echo "Verifique na AWS Console (EC2 -> Load Balancers) se o NLB foi criado:"
+            echo "  Nome deve começar com: k8s-kubesystem-traefik"
           else
-            echo "⏳ NLB do Traefik ainda está sendo provisionado..."
-            echo "Aguarde alguns minutos e verifique novamente com:"
-            echo "  kubectl get svc traefik-loadbalancer -n kube-system"
+            echo "❌ NLB do Traefik NÃO foi provisionado ainda"
+            echo ""
+            echo "Verificando detalhes do service:"
+            kubectl describe svc traefik-loadbalancer -n kube-system | tail -30
+            echo ""
+            echo "Verificando eventos relacionados:"
+            kubectl get events -n kube-system --sort-by='.lastTimestamp' | grep -i "traefik\|loadbalancer\|nlb" | tail -10 || echo "Nenhum evento encontrado"
+            echo ""
+            echo "🔧 POSSÍVEIS SOLUÇÕES:"
+            echo "1. Verifique permissões IAM do cluster EKS:"
+            echo "   - O cluster precisa de permissões para criar Load Balancers"
+            echo "   - Verifique a role do node group ou IRSA"
+            echo ""
+            echo "2. Verifique tags das sub-redes:"
+            echo "   - Sub-redes públicas devem ter: kubernetes.io/role/elb=1"
+            echo "   - Sub-redes privadas devem ter: kubernetes.io/role/internal-elb=1"
+            echo ""
+            echo "3. Verifique se há limite de Load Balancers na conta AWS"
+            echo ""
+            echo "4. Verifique logs do AWS Load Balancer Controller (se instalado):"
+            echo "   kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller"
           fi
           
           echo ""
