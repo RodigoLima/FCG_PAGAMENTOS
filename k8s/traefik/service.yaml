@@ -24,8 +24,4 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: traefik
-  sessionAffinity: ClientIP
-  sessionAffinityConfig:
-    clientIP:
-      timeoutSeconds: 10800
 
