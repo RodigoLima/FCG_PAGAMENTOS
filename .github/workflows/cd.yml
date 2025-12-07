@@ -216,3 +216,22 @@ jobs:
           fi
           
           echo "Deploy concluído com sucesso!"
+
+      # 8. Verificar Load Balancer URL
+      - name: Check Load Balancer URL
+        run: |
+          echo "Aguardando IP do Load Balancer..."
+          sleep 10
+          kubectl get svc payments-service -n payments
+          
+          echo ""
+          echo "=== DNS do NLB ==="
+          NLB_HOSTNAME=$(kubectl get svc payments-service -n payments -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          if [ -n "$NLB_HOSTNAME" ]; then
+            echo "NLB Hostname: $NLB_HOSTNAME"
+            echo ""
+            echo "Use este hostname para configurar o API Gateway"
+          else
+            echo "NLB ainda está sendo provisionado. Aguarde alguns minutos e verifique novamente com:"
+            echo "kubectl get svc payments-service -n payments"
+          fi
