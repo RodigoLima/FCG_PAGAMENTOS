@@ -33,22 +33,22 @@ spec:
             name: payments-config
         - secretRef:
             name: payments-secret
-        # livenessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: 8080
-        #   initialDelaySeconds: 60
-        #   periodSeconds: 10
-        #   timeoutSeconds: 5
-        #   failureThreshold: 5
-        # readinessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: 8080
-        #   initialDelaySeconds: 30
-        #   periodSeconds: 5
-        #   timeoutSeconds: 3
-        #   failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 5
       imagePullSecrets:
       - name: ecr-secret
 

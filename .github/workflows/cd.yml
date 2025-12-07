@@ -335,6 +335,9 @@ jobs:
             fi
           fi
           
+          # Forçar refresh do Traefik se necessário (opcional, mas ajuda em troubleshooting)
+          # kubectl rollout restart deployment/traefik -n kube-system
+          
           if [ -f k8s/payments/processed/traefik-service.yaml ]; then
             echo "🔍 Verificando se o Traefik Service já existe..."
             EXISTING_SVC=$(kubectl get svc traefik-loadbalancer -n kube-system 2>/dev/null || echo "")
@@ -570,12 +573,13 @@ jobs:
           
           echo ""
           echo "=== 5. STATUS DO MIDDLEWARE ==="
+          kubectl get middleware -A
           kubectl get middleware -n payments 2>/dev/null || echo "Middleware não encontrado ou CRD não instalado"
-          if kubectl get middleware payments-stripprefix -n payments >/dev/null 2>&1; then
-            echo "✅ Middleware payments-stripprefix encontrado:"
-            kubectl get middleware payments-stripprefix -n payments -o yaml
+          if kubectl get middleware stripprefix -n payments >/dev/null 2>&1; then
+            echo "✅ Middleware stripprefix encontrado:"
+            kubectl get middleware stripprefix -n payments -o yaml
           else
-            echo "❌ Middleware payments-stripprefix NÃO encontrado!"
+            echo "❌ Middleware stripprefix NÃO encontrado!"
           fi
           
           echo ""
