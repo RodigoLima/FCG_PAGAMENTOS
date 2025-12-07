@@ -32,20 +32,33 @@ Service do tipo ClusterIP para expor o deployment internamente.
 
 ### `hpa.yaml`
 Horizontal Pod Autoscaler configurado para:
-- Escalar de 1 a 10 réplicas
+- Escalar de 1 a 5 réplicas
 - Baseado em CPU (70%) e Memória (80%)
 - Políticas de scale up/down otimizadas
+
+### `ingress.yaml`
+Ingress usando AWS Load Balancer Controller (ALB):
+- ALB internet-facing
+- Health checks configurados
+- Paths: `/payments` e `/health`
 
 ## Deploy
 
 O deploy é realizado automaticamente via GitHub Actions quando há push para a branch `main` ou manualmente via `workflow_dispatch`.
 
+### Pré-requisitos:
+- Cluster EKS criado na AWS
+- AWS Load Balancer Controller instalado no cluster
+- Secret `EKS_CLUSTER_NAME` configurado no GitHub
+
 ### Ordem de aplicação:
 1. Namespace
 2. ConfigMap e Secret
-3. Deployment
-4. Service
-5. HPA
+3. ECR Secret (para pull de imagens)
+4. Deployment
+5. Service
+6. HPA
+7. Ingress
 
 ## Monitoramento
 

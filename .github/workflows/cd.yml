@@ -118,9 +118,6 @@ jobs:
           if [ -f k8s/ingress.yaml ]; then
             cp k8s/ingress.yaml k8s/payments/processed/ingress.yaml
           fi
-          if [ -f k8s/middleware.yaml ]; then
-            cp k8s/middleware.yaml k8s/payments/processed/middleware.yaml
-          fi
           if [ -f k8s/namespace.yaml ]; then
             cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
           else
@@ -132,116 +129,90 @@ jobs:
             exit 1
           fi
 
-      # 5. Copiar arquivos K8s para EC2
-      - name: Copy K8s files to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 90s
-          source: "k8s/payments/processed/*.yaml"
-          target: "/home/ubuntu/deploy/k8s/payments"
-          strip_components: 3
+      # 5. Instalar kubectl
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
 
-      # 6. Deploy na EC2 via SSH
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 600s
-          script: |
-            set -e
-            
-            ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-            AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-            AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
-            AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-            AWS_SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}"
-            AWS_DEFAULT_REGION="us-east-1"
-            AWS_REGION="us-east-1"
-            
-            export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_DEFAULT_REGION AWS_REGION
-            
-            mkdir -p ~/.kube
-            sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 2>/dev/null || exit 1
-            sudo chown ubuntu:ubuntu ~/.kube/config
-            chmod 600 ~/.kube/config
-            export KUBECONFIG=~/.kube/config
-            
-            kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
-            
-            if [ -z "$ECR_REGISTRY" ]; then
-              ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      # 6. Configurar kubectl para EKS
+      - name: Configure kubectl for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.EKS_CLUSTER_NAME }} \
+            --region us-east-1
+
+      # 7. Deploy no EKS
+      - name: Deploy to EKS
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_REGION: us-east-1
+        run: |
+          set -e
+          
+          kubectl create namespace payments --dry-run=client -o yaml | kubectl apply -f -
+          
+          if [ -z "$ECR_REGISTRY" ]; then
+            ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          fi
+          
+          kubectl delete secret ecr-secret -n payments 2>/dev/null || true
+          
+          TOKEN=$(aws ecr get-login-password --region $AWS_REGION) || exit 1
+          kubectl create secret docker-registry ecr-secret \
+            --docker-server="$ECR_REGISTRY" \
+            --docker-username=AWS \
+            --docker-password="$TOKEN" \
+            --namespace=payments || exit 1
+          
+          CURRENT_IMAGE=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
+          NEW_IMAGE=$(grep "image:" k8s/payments/processed/deployment.yaml | awk '{print $2}' | tr -d '"')
+          
+          kubectl apply -f k8s/payments/processed/configmap.yaml
+          kubectl apply -f k8s/payments/processed/secret.yaml
+          kubectl apply -f k8s/payments/processed/deployment.yaml
+          kubectl apply -f k8s/payments/processed/service.yaml
+          kubectl apply -f k8s/payments/processed/hpa.yaml
+          
+          if [ -f k8s/payments/processed/ingress.yaml ]; then
+            kubectl apply -f k8s/payments/processed/ingress.yaml
+          fi
+          
+          if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
+            READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            if [ "$READY" != "0" ]; then
+              echo "Deployment já está pronto, pulando rollout!"
+              exit 0
             fi
-            
-            kubectl delete secret ecr-secret -n payments 2>/dev/null || true
-            
-            if ! command -v aws &> /dev/null; then
-              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-              unzip -q awscliv2.zip && sudo ./aws/install
-              rm -rf awscliv2.zip aws
-            fi
-            
-            TOKEN=$(aws ecr get-login-password --region $AWS_REGION) || exit 1
-            kubectl create secret docker-registry ecr-secret \
-              --docker-server="$ECR_REGISTRY" \
-              --docker-username=AWS \
-              --docker-password="$TOKEN" \
-              --namespace=payments || exit 1
-            
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/configmap.yaml
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/secret.yaml
-            
-            CURRENT_IMAGE=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "")
-            NEW_IMAGE=$(grep "image:" /home/ubuntu/deploy/k8s/payments/deployment.yaml | awk '{print $2}' | tr -d '"')
-            
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/deployment.yaml
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/service.yaml
-            kubectl apply -f /home/ubuntu/deploy/k8s/payments/hpa.yaml
-            if [ -f /home/ubuntu/deploy/k8s/payments/middleware.yaml ]; then
-              kubectl apply -f /home/ubuntu/deploy/k8s/payments/middleware.yaml
-            fi
-            if [ -f /home/ubuntu/deploy/k8s/payments/ingress.yaml ]; then
-              kubectl apply -f /home/ubuntu/deploy/k8s/payments/ingress.yaml
-            fi
-            
-            if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
-              READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-              if [ "$READY" != "0" ]; then
-                echo "Deployment já está pronto, pulando rollout!"
-                exit 0
-              fi
-            fi
-            
-            if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
-              kubectl rollout restart deployment/payments-deployment -n payments
-            fi
-            
-            if ! kubectl rollout status deployment/payments-deployment -n payments --timeout=120s; then
-              echo "ERRO: Rollout falhou ou timeout"
+          fi
+          
+          if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
+            kubectl rollout restart deployment/payments-deployment -n payments
+          fi
+          
+          if ! kubectl rollout status deployment/payments-deployment -n payments --timeout=300s; then
+            echo "ERRO: Rollout falhou ou timeout"
+            echo ""
+            echo "=== Status dos pods ==="
+            kubectl get pods -n payments -o wide
+            echo ""
+            echo "=== Descrição do deployment ==="
+            kubectl describe deployment payments-deployment -n payments
+            echo ""
+            echo "=== Logs dos pods (últimos 50 linhas) ==="
+            for pod in $(kubectl get pods -n payments -l app=payments -o jsonpath='{.items[*].metadata.name}'); do
+              echo "--- Logs do pod: $pod ---"
+              kubectl logs $pod -n payments --tail=50 || echo "Não foi possível obter logs do pod $pod"
               echo ""
-              echo "=== Status dos pods ==="
-              kubectl get pods -n payments -o wide
+              echo "--- Descrição do pod: $pod ---"
+              kubectl describe pod $pod -n payments | tail -30
               echo ""
-              echo "=== Descrição do deployment ==="
-              kubectl describe deployment payments-deployment -n payments
-              echo ""
-              echo "=== Logs dos pods (últimos 50 linhas) ==="
-              for pod in $(kubectl get pods -n payments -l app=payments -o jsonpath='{.items[*].metadata.name}'); do
-                echo "--- Logs do pod: $pod ---"
-                kubectl logs $pod -n payments --tail=50 || echo "Não foi possível obter logs do pod $pod"
-                echo ""
-                echo "--- Descrição do pod: $pod ---"
-                kubectl describe pod $pod -n payments | tail -30
-                echo ""
-              done
-              echo ""
-              echo "=== Eventos do namespace ==="
-              kubectl get events -n payments --sort-by='.lastTimestamp' | tail -20
-              exit 1
-            fi
-            
-            echo "Deploy concluído com sucesso!"
+            done
+            echo ""
+            echo "=== Eventos do namespace ==="
+            kubectl get events -n payments --sort-by='.lastTimestamp' | tail -20
+            exit 1
+          fi
+          
+          echo "Deploy concluído com sucesso!"
