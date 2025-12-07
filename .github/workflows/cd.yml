@@ -118,6 +118,9 @@ jobs:
           if [ -f k8s/ingress.yaml ]; then
             cp k8s/ingress.yaml k8s/payments/processed/ingress.yaml
           fi
+          if [ -f k8s/middleware.yaml ]; then
+            cp k8s/middleware.yaml k8s/payments/processed/middleware.yaml
+          fi
           if [ -f k8s/namespace.yaml ]; then
             cp k8s/namespace.yaml k8s/payments/processed/namespace.yaml
           else
@@ -184,8 +187,16 @@ jobs:
           kubectl apply -f k8s/payments/processed/service.yaml
           kubectl apply -f k8s/payments/processed/hpa.yaml
           
+          if [ -f k8s/payments/processed/middleware.yaml ]; then
+            kubectl apply -f k8s/payments/processed/middleware.yaml
+          fi
+          
           if [ -f k8s/payments/processed/ingress.yaml ]; then
             kubectl apply -f k8s/payments/processed/ingress.yaml
+          fi
+          
+          if [ -f k8s/traefik-lb.yaml ]; then
+            kubectl apply -f k8s/traefik-lb.yaml
           fi
           
           if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
@@ -229,18 +240,26 @@ jobs:
       # 8. Verificar Load Balancer URL
       - name: Check Load Balancer URL
         run: |
-          echo "Aguardando IP do Load Balancer..."
+          echo "Aguardando IP do Load Balancer do Traefik..."
           sleep 10
+          
+          echo ""
+          echo "=== Status do Service Payments (ClusterIP) ==="
           kubectl get svc payments-service -n payments
           
           echo ""
-          echo "=== DNS do NLB ==="
-          NLB_HOSTNAME=$(kubectl get svc payments-service -n payments -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+          echo "=== DNS do NLB do Traefik ==="
+          NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
           if [ -n "$NLB_HOSTNAME" ]; then
-            echo "NLB Hostname: $NLB_HOSTNAME"
+            echo "Traefik NLB Hostname: $NLB_HOSTNAME"
             echo ""
             echo "Use este hostname para configurar o API Gateway"
+            echo "As rotas devem ser configuradas com o prefixo /api/payments"
           else
-            echo "NLB ainda está sendo provisionado. Aguarde alguns minutos e verifique novamente com:"
-            echo "kubectl get svc payments-service -n payments"
+            echo "NLB do Traefik ainda está sendo provisionado. Aguarde alguns minutos e verifique novamente com:"
+            echo "kubectl get svc traefik-loadbalancer -n kube-system"
           fi
+          
+          echo ""
+          echo "=== Status do Middleware ==="
+          kubectl get middleware -n payments 2>/dev/null || echo "Middleware não encontrado ou CRD não instalado"

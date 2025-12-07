@@ -1,0 +1,10 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: payments-stripprefix
+  namespace: payments
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/payments
+
