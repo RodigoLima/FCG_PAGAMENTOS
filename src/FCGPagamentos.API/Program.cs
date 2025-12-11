@@ -46,7 +46,7 @@ app.UseCorrelationId();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Pagamentos API v1");
+    c.SwaggerEndpoint("swagger/v1/swagger.json", "FCG Pagamentos API v1");
     c.RoutePrefix = "swagger";
 });
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
