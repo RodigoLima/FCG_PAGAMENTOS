@@ -43,10 +43,14 @@ Console.WriteLine($"FCG Pagamentos API iniciando - Environment: {app.Environment
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
 
-app.UseSwagger();
+app.UseSwagger(c =>
+{
+    c.RouteTemplate = "swagger/{documentName}/swagger.json";
+});
+
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("swagger/v1/swagger.json", "FCG Pagamentos API v1");
+    c.SwaggerEndpoint("./v1/swagger.json", "FCG Pagamentos API v1");
     c.RoutePrefix = "swagger";
 });
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
