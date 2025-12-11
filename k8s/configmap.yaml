@@ -9,4 +9,5 @@ data:
   AWS__Region: "us-east-1"
   AWS__AccountId: "${ACC_ID}"
   AWS__SQS__QueueName: "payments-to-process"
+  PATH_BASE: "/api/payments"
 

@@ -48,9 +48,13 @@ app.UseSwagger(c =>
     c.RouteTemplate = "swagger/{documentName}/swagger.json";
 });
 
+var pathBase = Environment.GetEnvironmentVariable("PATH_BASE");
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("./v1/swagger.json", "FCG Pagamentos API v1");
+    var swaggerPath = string.IsNullOrEmpty(pathBase) 
+        ? "./v1/swagger.json" 
+        : $"{pathBase.TrimEnd('/')}/swagger/v1/swagger.json";
+    c.SwaggerEndpoint(swaggerPath, "FCG Pagamentos API v1");
     c.RoutePrefix = "swagger";
 });
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
