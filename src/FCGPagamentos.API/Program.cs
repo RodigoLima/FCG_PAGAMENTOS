@@ -25,6 +25,7 @@ builder.Services.AddAppServices(builder.Configuration);
 
 // Adiciona Swagger
 builder.Services.AddEndpointsApiExplorer();
+var pathBase = Environment.GetEnvironmentVariable("PATH_BASE");
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
@@ -33,6 +34,14 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "API para processamento de pagamentos do sistema FCG"
     });
+    
+    if (!string.IsNullOrEmpty(pathBase))
+    {
+        c.AddServer(new Microsoft.OpenApi.Models.OpenApiServer
+        {
+            Url = pathBase.TrimEnd('/')
+        });
+    }
 });
 
 var app = builder.Build();
@@ -48,7 +57,6 @@ app.UseSwagger(c =>
     c.RouteTemplate = "swagger/{documentName}/swagger.json";
 });
 
-var pathBase = Environment.GetEnvironmentVariable("PATH_BASE");
 app.UseSwaggerUI(c =>
 {
     var swaggerPath = string.IsNullOrEmpty(pathBase) 
