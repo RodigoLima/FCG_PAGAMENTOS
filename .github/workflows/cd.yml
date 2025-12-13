@@ -296,8 +296,37 @@ jobs:
           # sleep 35
           # # ------------------------------------------------
           
-          kubectl apply -f k8s/payments/processed/configmap.yaml
-          kubectl apply -f k8s/payments/processed/secret.yaml
+          CONFIGMAP_CHANGED=false
+          SECRET_CHANGED=false
+          
+          if kubectl get configmap payments-config -n payments >/dev/null 2>&1; then
+            OLD_CONFIGMAP=$(kubectl get configmap payments-config -n payments -o yaml | grep -A 100 "^data:" | sort)
+            kubectl apply -f k8s/payments/processed/configmap.yaml >/dev/null 2>&1
+            NEW_CONFIGMAP=$(kubectl get configmap payments-config -n payments -o yaml | grep -A 100 "^data:" | sort)
+            if [ "$OLD_CONFIGMAP" != "$NEW_CONFIGMAP" ]; then
+              CONFIGMAP_CHANGED=true
+              echo "🔄 ConfigMap mudou. Deployment será reiniciado."
+            fi
+          else
+            kubectl apply -f k8s/payments/processed/configmap.yaml >/dev/null 2>&1
+            CONFIGMAP_CHANGED=true
+            echo "🆕 ConfigMap criado. Deployment será reiniciado."
+          fi
+          
+          if kubectl get secret payments-secret -n payments >/dev/null 2>&1; then
+            OLD_SECRET=$(kubectl get secret payments-secret -n payments -o yaml | grep -A 100 "^data:" | sort)
+            kubectl apply -f k8s/payments/processed/secret.yaml >/dev/null 2>&1
+            NEW_SECRET=$(kubectl get secret payments-secret -n payments -o yaml | grep -A 100 "^data:" | sort)
+            if [ "$OLD_SECRET" != "$NEW_SECRET" ]; then
+              SECRET_CHANGED=true
+              echo "🔄 Secret mudou. Deployment será reiniciado."
+            fi
+          else
+            kubectl apply -f k8s/payments/processed/secret.yaml >/dev/null 2>&1
+            SECRET_CHANGED=true
+            echo "🆕 Secret criado. Deployment será reiniciado."
+          fi
+          
           kubectl apply -f k8s/payments/processed/deployment.yaml
           
           kubectl apply -f k8s/payments/processed/service.yaml
@@ -423,11 +452,11 @@ jobs:
           fi
           
           SKIP_ROLLOUT=false
-          if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ]; then
+          if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" = "$NEW_IMAGE" ] && [ "$CONFIGMAP_CHANGED" = "false" ] && [ "$SECRET_CHANGED" = "false" ]; then
             READY=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
             DESIRED=$(kubectl get deployment payments-deployment -n payments -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
             if [ "$READY" = "$DESIRED" ] && [ "$READY" != "0" ]; then
-              echo "ℹ️  Deployment já está pronto com a mesma imagem. Verificando se há mudanças em outros recursos..."
+              echo "ℹ️  Deployment já está pronto. Nenhuma mudança detectada."
               SKIP_ROLLOUT=true
             fi
           fi
@@ -435,6 +464,9 @@ jobs:
           if [ "$SKIP_ROLLOUT" = "false" ]; then
             if [ -n "$CURRENT_IMAGE" ] && [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
               echo "🔄 Imagem mudou. Reiniciando deployment..."
+              kubectl rollout restart deployment/payments-deployment -n payments
+            elif [ "$CONFIGMAP_CHANGED" = "true" ] || [ "$SECRET_CHANGED" = "true" ]; then
+              echo "🔄 ConfigMap ou Secret mudou. Reiniciando deployment para aplicar mudanças..."
               kubectl rollout restart deployment/payments-deployment -n payments
             else
               echo "🔄 Aguardando deployment ficar pronto..."
