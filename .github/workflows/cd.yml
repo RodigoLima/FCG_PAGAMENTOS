@@ -117,14 +117,32 @@ jobs:
           echo "  SECRET_KEY: ${SECRET_KEY:0:15}..."
           echo "  SESSION_TOKEN: ${SESSION_TOKEN:0:30}..."
           
-          # Tentar sem session token primeiro (para ver se o problema é o token)
+          # Tentar sem session token primeiro (para diagnóstico)
           echo ""
-          echo "Testando sem SESSION_TOKEN (apenas para diagnóstico)..."
+          echo "Testando sem SESSION_TOKEN (diagnóstico)..."
           unset AWS_SESSION_TOKEN
-          if aws sts get-caller-identity 2>&1 | head -3; then
-            echo "⚠️  Credenciais base funcionam sem token, mas token é necessário"
+          if aws sts get-caller-identity >/dev/null 2>&1; then
+            echo "✅ Credenciais base funcionam, mas SESSION_TOKEN é necessário"
+            export AWS_SESSION_TOKEN="$SESSION_TOKEN"
           else
-            echo "⚠️  Credenciais base também falham"
+            echo "❌ ERRO: Credenciais base (ACCESS_KEY + SECRET_KEY) estão INVÁLIDAS"
+            echo ""
+            echo "🔍 DIAGNÓSTICO:"
+            echo "   O erro ocorre mesmo sem o SESSION_TOKEN, o que significa que:"
+            echo "   - AWS_ACCESS_KEY_ID ou AWS_SECRET_ACCESS_KEY estão incorretos"
+            echo "   - Ou eles não correspondem entre si"
+            echo ""
+            echo "📋 AÇÃO NECESSÁRIA:"
+            echo "   1. No AWS Academy, gere NOVAS credenciais temporárias"
+            echo "   2. Copie TODAS as três credenciais JUNTAS (elas devem ser geradas juntas):"
+            echo "      - AWS_ACCESS_KEY_ID"
+            echo "      - AWS_SECRET_ACCESS_KEY"
+            echo "      - AWS_SESSION_TOKEN"
+            echo "   3. Atualize TODAS as três na organização GitHub (fgcmicro) ao mesmo tempo"
+            echo "   4. Certifique-se de que não há espaços extras ou quebras de linha"
+            echo ""
+            echo "⚠️  IMPORTANTE: As três credenciais DEVEM ser do mesmo conjunto gerado!"
+            exit 1
           fi
           
           # Restaurar token e tentar novamente
@@ -132,19 +150,19 @@ jobs:
           
           echo ""
           echo "Testando com SESSION_TOKEN..."
-          if aws sts get-caller-identity --debug 2>&1 | grep -i "error\|invalid\|token" | head -5; then
+          if ! aws sts get-caller-identity >/dev/null 2>&1; then
             echo ""
-            echo "ERRO: Falha ao validar credenciais AWS"
+            echo "❌ ERRO: SESSION_TOKEN está inválido ou não corresponde às credenciais base"
             echo ""
-            echo "Possíveis causas:"
-            echo "1. AWS_SESSION_TOKEN expirado ou inválido"
-            echo "2. AWS_SESSION_TOKEN não corresponde ao AWS_ACCESS_KEY_ID"
-            echo "3. Credenciais foram regeneradas mas o token não foi atualizado"
-            echo "4. Token contém caracteres inválidos ou quebras de linha"
+            echo "📋 AÇÃO NECESSÁRIA:"
+            echo "   1. Verifique se o SESSION_TOKEN corresponde ao mesmo conjunto de credenciais"
+            echo "   2. Gere novas credenciais no AWS Academy e atualize todas juntas"
+            echo "   3. Verifique se o token não expirou (tokens do AWS Academy expiram rapidamente)"
             exit 1
           fi
           
           echo "✅ Credenciais AWS validadas com sucesso"
+          aws sts get-caller-identity
 
       # 2. Login no ECR
       - name: Login to Amazon ECR
