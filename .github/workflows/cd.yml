@@ -24,15 +24,60 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 0. Validar secrets AWS
+      # 0. Debug e Validar secrets AWS
+      - name: Debug AWS Secrets
+        run: |
+          echo "🔍 Debug: Verificando secrets AWS da organização..."
+          echo ""
+          echo "Lendo secrets diretamente (primeiros caracteres para verificação):"
+          echo "AWS_ACCESS_KEY_ID começa com: ${{ secrets.AWS_ACCESS_KEY_ID }}"
+          echo "AWS_SECRET_ACCESS_KEY começa com: ${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          echo "AWS_SESSION_TOKEN começa com: ${{ secrets.AWS_SESSION_TOKEN }}"
+          echo ""
+          echo "Tamanhos dos secrets:"
+          echo "  ACCESS_KEY: ${#{{ secrets.AWS_ACCESS_KEY_ID }}} caracteres"
+          echo "  SECRET_KEY: ${#{{ secrets.AWS_SECRET_ACCESS_KEY }}} caracteres"
+          echo "  SESSION_TOKEN: ${#{{ secrets.AWS_SESSION_TOKEN }}} caracteres"
+          echo ""
+          echo "⚠️  Verificando se os valores correspondem aos esperados..."
+          ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY_ID }}"
+          if [[ "$ACCESS_KEY" == ASIAVRUVQWRW3JQ74PIZ* ]] || [[ "$ACCESS_KEY" == ASIAVRUVQWRW3JQ74PIZ ]]; then
+            echo "✅ AWS_ACCESS_KEY_ID parece correto (começa com ASIAVRUVQWRW3JQ74PIZ)"
+          else
+            echo "❌ AWS_ACCESS_KEY_ID NÃO corresponde ao esperado!"
+            echo "   Esperado: ASIAVRUVQWRW3JQ74PIZ"
+            echo "   Recebido: ${ACCESS_KEY:0:20}..."
+          fi
+          
+          SECRET_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          if [[ "$SECRET_KEY" == O1MKYVShle1+pg2/E+QYAqb9dsx1m0WibmIg08CW* ]] || [[ "$SECRET_KEY" == O1MKYVShle1+pg2/E+QYAqb9dsx1m0WibmIg08CW ]]; then
+            echo "✅ AWS_SECRET_ACCESS_KEY parece correto"
+          else
+            echo "❌ AWS_SECRET_ACCESS_KEY NÃO corresponde ao esperado!"
+            echo "   Esperado: O1MKYVShle1+pg2/E+QYAqb9dsx1m0WibmIg08CW"
+            echo "   Recebido: ${SECRET_KEY:0:40}..."
+            echo "   ⚠️  Pode estar trocado com AWS_SESSION_TOKEN!"
+          fi
+          
+          SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}"
+          if [[ "$SESSION_TOKEN" == IQoJb3JpZ2luX2VjEOb* ]]; then
+            echo "✅ AWS_SESSION_TOKEN parece correto (começa com IQoJb3JpZ2luX2VjEOb)"
+          else
+            echo "❌ AWS_SESSION_TOKEN NÃO corresponde ao esperado!"
+            echo "   Esperado: IQoJb3JpZ2luX2VjEOb..."
+            echo "   Recebido: ${SESSION_TOKEN:0:30}..."
+            echo "   ⚠️  Pode estar trocado com AWS_SECRET_ACCESS_KEY!"
+          fi
+
+      # 0.5. Validar secrets AWS
       - name: Validate AWS Secrets
         run: |
           echo "Validando secrets AWS..."
           
           # Remover espaços em branco extras
-          ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_KEY_ID }}" | xargs)
-          SECRET_KEY=$(echo "${{ secrets.AWS_SECRET_ACCESS_KEY }}" | xargs)
-          SESSION_TOKEN=$(echo "${{ secrets.AWS_SESSION_TOKEN }}" | xargs)
+          ACCESS_KEY=$(echo -n "${{ secrets.AWS_ACCESS_KEY_ID }}" | tr -d '\r\n' | xargs)
+          SECRET_KEY=$(echo -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" | tr -d '\r\n' | xargs)
+          SESSION_TOKEN=$(echo -n "${{ secrets.AWS_SESSION_TOKEN }}" | tr -d '\r\n' | xargs)
           
           if [ -z "$ACCESS_KEY" ]; then
             echo "ERRO: AWS_ACCESS_KEY_ID está vazio ou inválido"
@@ -62,9 +107,9 @@ jobs:
           fi
           
           echo "✅ Todos os secrets estão presentes e parecem válidos"
-          echo "AWS_ACCESS_KEY_ID: ${ACCESS_KEY:0:10}... (tamanho: ${#ACCESS_KEY})"
-          echo "AWS_SECRET_ACCESS_KEY: ${SECRET_KEY:0:10}... (tamanho: ${#SECRET_KEY})"
-          echo "AWS_SESSION_TOKEN: ${SESSION_TOKEN:0:20}... (tamanho: ${#SESSION_TOKEN})"
+          echo "AWS_ACCESS_KEY_ID: ${ACCESS_KEY:0:15}... (tamanho: ${#ACCESS_KEY})"
+          echo "AWS_SECRET_ACCESS_KEY: ${SECRET_KEY:0:15}... (tamanho: ${#SECRET_KEY})"
+          echo "AWS_SESSION_TOKEN: ${SESSION_TOKEN:0:30}... (tamanho: ${#SESSION_TOKEN})"
 
       # 1. Configurar credenciais AWS manualmente
       - name: Configure AWS Credentials
