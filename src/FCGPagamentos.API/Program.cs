@@ -9,6 +9,7 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using System.Diagnostics;
+using Amazon.XRay.Recorder.Handlers.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,6 +70,9 @@ using (var scope = app.Services.CreateScope())
 
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
+
+// AWS X-Ray middleware para APM
+app.UseXRay("fcg-payments-api");
 
 app.UseSwagger(c =>
 {

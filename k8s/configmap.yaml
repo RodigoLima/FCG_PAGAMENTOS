@@ -10,4 +10,6 @@ data:
   AWS__AccountId: "${ACC_ID}"
   AWS__SQS__QueueName: "payments-to-process"
   PATH_BASE: "/api/payments"
+  XRay__ServiceName: "fcg-payments-api"
+  XRay__TracingDisabled: "false"
 

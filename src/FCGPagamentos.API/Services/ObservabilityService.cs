@@ -21,6 +21,9 @@ public static class ObservabilityService
         // Configura OpenTelemetry
         services.AddOpenTelemetry(configuration);
         
+        // Configura AWS X-Ray para APM
+        services.AddXRay(configuration);
+        
         return services;
     }
 
