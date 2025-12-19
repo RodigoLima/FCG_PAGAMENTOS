@@ -29,18 +29,22 @@ jobs:
         run: |
           echo "🔍 Debug: Verificando secrets AWS da organização..."
           echo ""
-          echo "Lendo secrets diretamente (primeiros caracteres para verificação):"
-          echo "AWS_ACCESS_KEY_ID começa com: ${{ secrets.AWS_ACCESS_KEY_ID }}"
-          echo "AWS_SECRET_ACCESS_KEY começa com: ${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          echo "AWS_SESSION_TOKEN começa com: ${{ secrets.AWS_SESSION_TOKEN }}"
-          echo ""
-          echo "Tamanhos dos secrets:"
-          echo "  ACCESS_KEY: ${#{{ secrets.AWS_ACCESS_KEY_ID }}} caracteres"
-          echo "  SECRET_KEY: ${#{{ secrets.AWS_SECRET_ACCESS_KEY }}} caracteres"
-          echo "  SESSION_TOKEN: ${#{{ secrets.AWS_SESSION_TOKEN }}} caracteres"
-          echo ""
           echo "⚠️  Verificando se os valores correspondem aos esperados..."
           ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY_ID }}"
+          SECRET_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}"
+          
+          echo ""
+          echo "Tamanhos dos secrets:"
+          echo "  ACCESS_KEY: ${#ACCESS_KEY} caracteres"
+          echo "  SECRET_KEY: ${#SECRET_KEY} caracteres"
+          echo "  SESSION_TOKEN: ${#SESSION_TOKEN} caracteres"
+          echo ""
+          echo "Primeiros caracteres (para verificação):"
+          echo "  ACCESS_KEY: ${ACCESS_KEY:0:20}..."
+          echo "  SECRET_KEY: ${SECRET_KEY:0:40}..."
+          echo "  SESSION_TOKEN: ${SESSION_TOKEN:0:30}..."
+          echo ""
           if [[ "$ACCESS_KEY" == ASIAVRUVQWRW3JQ74PIZ* ]] || [[ "$ACCESS_KEY" == ASIAVRUVQWRW3JQ74PIZ ]]; then
             echo "✅ AWS_ACCESS_KEY_ID parece correto (começa com ASIAVRUVQWRW3JQ74PIZ)"
           else
@@ -49,7 +53,6 @@ jobs:
             echo "   Recebido: ${ACCESS_KEY:0:20}..."
           fi
           
-          SECRET_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
           if [[ "$SECRET_KEY" == O1MKYVShle1+pg2/E+QYAqb9dsx1m0WibmIg08CW* ]] || [[ "$SECRET_KEY" == O1MKYVShle1+pg2/E+QYAqb9dsx1m0WibmIg08CW ]]; then
             echo "✅ AWS_SECRET_ACCESS_KEY parece correto"
           else
@@ -59,7 +62,6 @@ jobs:
             echo "   ⚠️  Pode estar trocado com AWS_SESSION_TOKEN!"
           fi
           
-          SESSION_TOKEN="${{ secrets.AWS_SESSION_TOKEN }}"
           if [[ "$SESSION_TOKEN" == IQoJb3JpZ2luX2VjEOb* ]]; then
             echo "✅ AWS_SESSION_TOKEN parece correto (começa com IQoJb3JpZ2luX2VjEOb)"
           else
