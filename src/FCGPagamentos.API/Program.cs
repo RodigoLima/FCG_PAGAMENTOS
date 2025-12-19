@@ -2,7 +2,9 @@ using FCGPagamentos.API.DI;
 using FCGPagamentos.API.Endpoints;
 using FCGPagamentos.API.Middleware;
 using FCGPagamentos.API.Services;
+using FCGPagamentos.Infrastructure.Persistence;
 using Grafana.OpenTelemetry;
+using Microsoft.EntityFrameworkCore;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -48,6 +50,22 @@ var app = builder.Build();
 
 // Log de inicialização
 Console.WriteLine($"FCG Pagamentos API iniciando - Environment: {app.Environment.EnvironmentName}");
+
+// Aplicar migrações do banco de dados
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Console.WriteLine("Aplicando migrações do banco de dados...");
+        await context.Database.MigrateAsync();
+        Console.WriteLine("Migrações aplicadas com sucesso!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Erro ao aplicar migrações (ignorado): {ex.Message}");
+    }
+}
 
 // Middleware de correlation ID (deve vir antes de outros middlewares)
 app.UseCorrelationId();
