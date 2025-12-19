@@ -20,6 +20,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 0. Validar secrets AWS
+      - name: Validate AWS Secrets
+        run: |
+          echo "Validando secrets AWS..."
+          
+          # Remover espaços em branco extras
+          ACCESS_KEY=$(echo "${{ secrets.AWS_ACCESS_KEY_ID }}" | xargs)
+          SECRET_KEY=$(echo "${{ secrets.AWS_SECRET_ACCESS_KEY }}" | xargs)
+          SESSION_TOKEN=$(echo "${{ secrets.AWS_SESSION_TOKEN }}" | xargs)
+          
+          if [ -z "$ACCESS_KEY" ]; then
+            echo "ERRO: AWS_ACCESS_KEY_ID está vazio ou inválido"
+            exit 1
+          fi
+          if [ -z "$SECRET_KEY" ]; then
+            echo "ERRO: AWS_SECRET_ACCESS_KEY está vazio ou inválido"
+            exit 1
+          fi
+          if [ -z "$SESSION_TOKEN" ]; then
+            echo "ERRO: AWS_SESSION_TOKEN está vazio ou inválido"
+            exit 1
+          fi
+          
+          # Verificar tamanhos mínimos
+          if [ ${#ACCESS_KEY} -lt 16 ]; then
+            echo "ERRO: AWS_ACCESS_KEY_ID parece inválido (muito curto)"
+            exit 1
+          fi
+          if [ ${#SECRET_KEY} -lt 20 ]; then
+            echo "ERRO: AWS_SECRET_ACCESS_KEY parece inválido (muito curto)"
+            exit 1
+          fi
+          if [ ${#SESSION_TOKEN} -lt 100 ]; then
+            echo "ERRO: AWS_SESSION_TOKEN parece inválido (muito curto)"
+            exit 1
+          fi
+          
+          echo "✅ Todos os secrets estão presentes e parecem válidos"
+          echo "AWS_ACCESS_KEY_ID: ${ACCESS_KEY:0:10}... (tamanho: ${#ACCESS_KEY})"
+          echo "AWS_SECRET_ACCESS_KEY: ${SECRET_KEY:0:10}... (tamanho: ${#SECRET_KEY})"
+          echo "AWS_SESSION_TOKEN: ${SESSION_TOKEN:0:20}... (tamanho: ${#SESSION_TOKEN})"
+
       # 1. Login na AWS
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -28,6 +70,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
+
+      # 1.5. Testar credenciais AWS
+      - name: Test AWS Credentials
+        run: |
+          echo "Testando credenciais AWS..."
+          aws sts get-caller-identity || {
+            echo "ERRO: Falha ao validar credenciais AWS"
+            echo "Verificando variáveis de ambiente..."
+            env | grep AWS || echo "Nenhuma variável AWS encontrada"
+            exit 1
+          }
+          echo "✅ Credenciais AWS validadas com sucesso"
 
       # 2. Login no ECR
       - name: Login to Amazon ECR
