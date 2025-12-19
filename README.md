@@ -6,8 +6,10 @@ Sistema de processamento de pagamentos desenvolvido em .NET 8 com arquitetura li
 
 - **.NET 8** - Framework principal
 - **PostgreSQL** - Banco de dados
-- **Azure Storage** - Armazenamento de filas e eventos
+- **AWS SQS** - Comunicação assíncrona via filas (MassTransit)
 - **OpenTelemetry** - Observabilidade e métricas
+- **Application Insights** - APM e monitoramento
+- **Grafana** - Visualização de métricas
 - **Serilog** - Logging estruturado
 - **FluentValidation** - Validação de dados
 - **Swagger** - Documentação da API
@@ -127,12 +129,31 @@ O sistema inclui observabilidade completa com:
 - **Métricas** com OpenTelemetry
 - **Tracing distribuído** com correlation IDs
 - **Health checks** para monitoramento
+- **Application Insights** para APM
+- **Grafana** para visualização
 
 ### Logs
 Os logs são salvos em `logs/fcg-pagamentos-YYYYMMDD.txt` e também enviados para o console.
 
 ### Métricas
 Acesse as métricas em `/metrics` para monitoramento com Prometheus/Grafana.
+
+## 🔄 Comunicação Assíncrona
+
+Este microsserviço utiliza **AWS SQS** via **MassTransit** para comunicação assíncrona:
+
+- **Publica**: Mensagens `PaymentRequestedMessage` na fila `payments-to-process` quando um pagamento é criado
+- **Worker**: O Payments Worker consome essas mensagens e processa os pagamentos de forma assíncrona
+
+### Fluxo de Processamento
+
+1. API recebe requisição de criação de pagamento
+2. Cria registro no banco de dados
+3. Publica `PaymentRequestedMessage` na fila SQS
+4. Retorna resposta imediata ao cliente
+5. Worker processa o pagamento de forma assíncrona
+
+Para mais detalhes sobre a arquitetura completa e fluxo assíncrono, consulte a documentação no repositório do [GameService](../fcg.GameService/docs/).
 
 ## 🏗️ Arquitetura
 
