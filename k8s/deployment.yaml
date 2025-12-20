@@ -16,7 +16,12 @@ spec:
         app: payments
     spec:
       # Tolerations para permitir agendamento em nodes com taints (comum após pausar/retomar AWS Academy Lab)
+      # Tolerations amplas para cobrir todos os taints possíveis
       tolerations:
+      - operator: "Exists"
+        effect: "NoSchedule"
+      - operator: "Exists"
+        effect: "PreferNoSchedule"
       - key: "node.kubernetes.io/not-ready"
         operator: "Exists"
         effect: "NoExecute"
