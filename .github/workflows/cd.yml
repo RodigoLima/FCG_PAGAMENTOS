@@ -392,7 +392,9 @@ jobs:
                 echo "   Aguardando provisionamento do LoadBalancer..."
                 NEED_APPLY=false
               else
-                echo "⚠️  Traefik Service existe mas com scheme diferente ($CURRENT_SCHEME). Atualizando para internet-facing..."
+                echo "⚠️  Traefik Service existe mas com scheme incorreto ($CURRENT_SCHEME). Forçando atualização para internet-facing..."
+                echo "   ⚠️  IMPORTANTE: Se o LoadBalancer já foi criado como internal, será necessário deletá-lo e recriar."
+                echo "   Aplicando configuração correta (internet-facing)..."
                 NEED_APPLY=true
               fi
             else
@@ -410,7 +412,20 @@ jobs:
             fi
             
             if [ "$NEED_APPLY" = "true" ]; then
-              echo "✅ Aplicando Traefik Service LoadBalancer..."
+              # Se o scheme está incorreto e já existe um LoadBalancer, pode ser necessário deletar o serviço primeiro
+              if [ -n "$EXISTING_SVC" ] && [ "$CURRENT_SCHEME" != "internet-facing" ] && [ -n "$NLB_HOSTNAME" ]; then
+                echo "⚠️  LoadBalancer existente com scheme incorreto detectado."
+                echo "   O AWS Load Balancer Controller não pode alterar o scheme de um LoadBalancer existente."
+                echo "   Será necessário deletar o serviço e recriar com a configuração correta."
+                echo "   ⚠️  Isso causará uma breve interrupção no serviço."
+                echo ""
+                echo "🗑️  Deletando serviço antigo para recriar com internet-facing..."
+                kubectl delete svc traefik-loadbalancer -n kube-system --ignore-not-found=true
+                echo "⏳ Aguardando 10 segundos para a AWS remover o LoadBalancer antigo..."
+                sleep 10
+              fi
+              
+              echo "✅ Aplicando Traefik Service LoadBalancer (internet-facing)..."
               
               # Verificar AWS Load Balancer Controller antes de aplicar
               echo "🔍 Verificando AWS Load Balancer Controller..."
