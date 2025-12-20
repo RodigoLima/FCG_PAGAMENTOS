@@ -504,6 +504,14 @@ jobs:
                   echo "   - EC2 > Load Balancers (verificar se aparece algum NLB)"
                   echo "   - Verificar se há erros no CloudWatch Logs do Controller"
                 fi
+              else
+                echo "⚠️  Erro ao aplicar traefik-service.yaml. Tentando service-backup.yaml..."
+                if [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
+                  kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
+                else
+                  echo "❌ ERRO: Não foi possível aplicar o Traefik Service!"
+                  exit 1
+                fi
               fi
               
               NODE_PORT=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
@@ -512,15 +520,6 @@ jobs:
                 echo "⚠️  IMPORTANTE: Configure o Target Group do API Gateway para usar a porta $NODE_PORT"
               else
                 echo "⚠️  NodePort ainda não foi atribuído."
-              fi
-            else
-              echo "⚠️  Erro ao aplicar traefik-service.yaml. Tentando service-backup.yaml..."
-              if [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
-                kubectl apply -f k8s/payments/processed/traefik-service-backup.yaml
-              else
-                echo "❌ ERRO: Não foi possível aplicar o Traefik Service!"
-                exit 1
-              fi
               fi
             fi
           elif [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
