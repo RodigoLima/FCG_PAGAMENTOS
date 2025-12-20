@@ -380,9 +380,16 @@ jobs:
             NEED_APPLY=false
             if [ -n "$EXISTING_SVC" ]; then
               CURRENT_SCHEME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-scheme}' 2>/dev/null || echo "")
-              if [ "$CURRENT_SCHEME" = "internet-facing" ]; then
-                echo "✅ Traefik Service já existe e está configurado como internet-facing. Pulando aplicação (compartilhado entre projetos)."
+              NLB_HOSTNAME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+              
+              if [ "$CURRENT_SCHEME" = "internet-facing" ] && [ -n "$NLB_HOSTNAME" ]; then
+                echo "✅ Traefik Service já existe, está configurado como internet-facing e o LoadBalancer foi provisionado."
+                echo "   Hostname do LoadBalancer: $NLB_HOSTNAME"
                 echo "ℹ️  O LoadBalancer do Traefik é compartilhado - não precisa ser criado por cada projeto."
+                NEED_APPLY=false
+              elif [ "$CURRENT_SCHEME" = "internet-facing" ] && [ -z "$NLB_HOSTNAME" ]; then
+                echo "⚠️  Traefik Service existe e está configurado como internet-facing, mas o LoadBalancer ainda não foi provisionado."
+                echo "   Aguardando provisionamento do LoadBalancer..."
                 NEED_APPLY=false
               else
                 echo "⚠️  Traefik Service existe mas com scheme diferente ($CURRENT_SCHEME). Atualizando para internet-facing..."
