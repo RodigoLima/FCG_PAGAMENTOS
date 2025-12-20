@@ -7,6 +7,12 @@ metadata:
     app: payments
 spec:
   replicas: 1
+  # Estratégia de rollout para evitar pods travados durante atualizações
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: payments
@@ -15,6 +21,8 @@ spec:
       labels:
         app: payments
     spec:
+      # Grace period para permitir que pods terminem corretamente (evita pods travados)
+      terminationGracePeriodSeconds: 30
       # Tolerations para permitir agendamento em nodes com taints (comum após pausar/retomar AWS Academy Lab)
       # Tolerations amplas para cobrir todos os taints possíveis
       tolerations:
@@ -59,6 +67,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 5
+          successThreshold: 1
         readinessProbe:
           httpGet:
             path: /health
@@ -67,6 +76,12 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 5
+          successThreshold: 1
+        # Lifecycle hooks para garantir término limpo
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5"]
       # X-Ray Daemon Sidecar (para AWS Academy Lab - usa credenciais diretamente)
       - name: xray-daemon
         image: amazon/aws-xray-daemon:latest
