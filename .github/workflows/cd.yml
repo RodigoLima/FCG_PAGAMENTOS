@@ -377,24 +377,34 @@ jobs:
             echo "🔍 Verificando se o Traefik Service já existe..."
             EXISTING_SVC=$(kubectl get svc traefik-loadbalancer -n kube-system 2>/dev/null || echo "")
             
+            NEED_APPLY=false
             if [ -n "$EXISTING_SVC" ]; then
-              echo "✅ Traefik Service já existe. Atualizando sem deletar para preservar o Load Balancer..."
+              CURRENT_SCHEME=$(kubectl get svc traefik-loadbalancer -n kube-system -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-scheme}' 2>/dev/null || echo "")
+              if [ "$CURRENT_SCHEME" = "internet-facing" ]; then
+                echo "✅ Traefik Service já existe e está configurado como internet-facing. Pulando aplicação (compartilhado entre projetos)."
+                echo "ℹ️  O LoadBalancer do Traefik é compartilhado - não precisa ser criado por cada projeto."
+                NEED_APPLY=false
+              else
+                echo "⚠️  Traefik Service existe mas com scheme diferente ($CURRENT_SCHEME). Atualizando para internet-facing..."
+                NEED_APPLY=true
+              fi
             else
-              echo "📦 Traefik Service não existe. Criando novo..."
+              echo "📦 Traefik Service não existe. Criando novo (será compartilhado por todos os projetos)..."
+              echo "🔍 Verificando se os pods do Traefik estão disponíveis..."
+              TRAEFIK_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+              if [ -z "$TRAEFIK_PODS" ]; then
+                echo "⚠️  AVISO: Nenhum pod do Traefik encontrado com label app.kubernetes.io/name=traefik"
+                echo "Verificando pods do Traefik:"
+                kubectl get pods -n kube-system | grep traefik || echo "Nenhum pod encontrado"
+              else
+                echo "✅ Pods do Traefik encontrados: $TRAEFIK_PODS"
+              fi
+              NEED_APPLY=true
             fi
             
-            echo "🔍 Verificando se os pods do Traefik estão disponíveis..."
-            TRAEFIK_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
-            if [ -z "$TRAEFIK_PODS" ]; then
-              echo "⚠️  AVISO: Nenhum pod do Traefik encontrado com label app.kubernetes.io/name=traefik"
-              echo "Verificando pods do Traefik:"
-              kubectl get pods -n kube-system | grep traefik || echo "Nenhum pod encontrado"
-            else
-              echo "✅ Pods do Traefik encontrados: $TRAEFIK_PODS"
-            fi
-            
-            echo "✅ Aplicando Traefik Service LoadBalancer..."
-            if kubectl apply -f k8s/payments/processed/traefik-service.yaml; then
+            if [ "$NEED_APPLY" = "true" ]; then
+              echo "✅ Aplicando Traefik Service LoadBalancer..."
+              if kubectl apply -f k8s/payments/processed/traefik-service.yaml; then
               echo "✅ Traefik Service aplicado com sucesso!"
               
               echo "📋 Verificando detalhes do service..."
@@ -441,6 +451,7 @@ jobs:
               else
                 echo "❌ ERRO: Não foi possível aplicar o Traefik Service!"
                 exit 1
+              fi
               fi
             fi
           elif [ -f k8s/payments/processed/traefik-service-backup.yaml ]; then
